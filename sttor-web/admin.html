@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es-PE">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel STTOR | Administracion de contenido</title>
+  <meta name="description" content="Dashboard administrativo STTOR para gestionar productos, banners, servicios, testimonios y datos comerciales.">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-shell" data-page="admin">
+  <div class="admin-app">
+    <aside class="admin-sidebar">
+      <div class="admin-brand">
+        <img src="assets/logo-sttor-transparent.png" alt="STTOR">
+        <div><strong>STTOR Admin</strong><span>Contenido y catalogo</span></div>
+      </div>
+      <nav class="admin-nav" aria-label="Administracion">
+        <button class="admin-tab active" data-admin-tab="overview"><span class="icon">01</span>Resumen</button>
+        <button class="admin-tab" data-admin-tab="products"><span class="icon">02</span>Productos</button>
+        <button class="admin-tab" data-admin-tab="home"><span class="icon">03</span>Inicio</button>
+        <button class="admin-tab" data-admin-tab="media"><span class="icon">04</span>Imagenes</button>
+        <button class="admin-tab" data-admin-tab="services"><span class="icon">05</span>Servicio tecnico</button>
+        <button class="admin-tab" data-admin-tab="testimonials"><span class="icon">06</span>Testimonios</button>
+        <button class="admin-tab" data-admin-tab="settings"><span class="icon">07</span>Configuracion</button>
+      </nav>
+      <div class="admin-muted">Guarda aqui para seguir editando. Antes de subir la web, usa Exportar para publicar y reemplaza el archivo site-data.json dentro de la carpeta sttor-web.</div>
+    </aside>
+    <main class="admin-main">
+      <div class="admin-topbar">
+        <label class="admin-search"><span>Buscar</span><input data-global-search placeholder="Producto, servicio o promocion"></label>
+        <div class="admin-actions">
+          <a class="btn" href="index.html">Ver sitio</a>
+          <button class="btn publish-btn" data-export-publish type="button">Exportar site-data.json</button>
+          <button class="btn primary" data-save>Guardar cambios</button>
+        </div>
+      </div>
+      <div class="publish-reminder">
+        <strong>Para subir tu web:</strong>
+        despues de guardar, descarga <b>site-data.json</b> y ponlo dentro de <b>sttor-web</b>, al lado de <b>index.html</b>. Si te pide reemplazar, acepta.
+      </div>
+      <div class="admin-content" data-admin-content></div>
+      <div class="save-bar">
+        <span class="status" data-status>Sin cambios pendientes</span>
+        <button class="btn publish-btn" data-export-publish type="button">Exportar site-data.json</button>
+        <button class="btn primary" data-save>Guardar</button>
+      </div>
+    </main>
+  </div>
+  <script src="app.js" defer></script>
+  <script src="admin.js" defer></script>
+</body>
+</html>
