@@ -302,16 +302,25 @@ function applyManagedContent(saved = {}) {
 
 async function hydratePublishedContent() {
   try {
-    const response = await fetch("site-data.json", { cache: "no-store" });
+    let response = await fetch("/api/content", { cache: "no-store" });
+    if (!response.ok) response = await fetch("site-data.json", { cache: "no-store" });
     if (!response.ok) return;
     const published = await response.json();
     applyManagedContent(published);
+    window.STTOR_PUBLISHED_CONTENT_LOADED = true;
   } catch {
     // site-data.json is optional in local previews.
   }
 }
 
 function hydrateUserContent() {
+  if (window.STTOR_PUBLISHED_CONTENT_LOADED) {
+    ensureDecorationSlots();
+    normalizeServices();
+    normalizeTestimonials();
+    normalizeDecorations();
+    return;
+  }
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
     applyManagedContent(saved);

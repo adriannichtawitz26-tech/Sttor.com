@@ -3,7 +3,10 @@ const Admin = {
   current: "overview",
   query: "",
   dirty: false,
-  autosaveTimer: null
+  autosaveTimer: null,
+  revision: 0,
+  saving: false,
+  saveQueued: false
 };
 
 const IMAGE_ACCEPT = ".webp,.jpg,.jpeg,.png,.svg,.avif,.gif,.bmp,.tif,.tiff,.ico,image/webp,image/jpeg,image/png,image/svg+xml,image/avif,image/gif,image/bmp,image/tiff,image/x-icon";
@@ -12,8 +15,6 @@ const DECOR_ACCEPT = `${IMAGE_ACCEPT},${VIDEO_ACCEPT}`;
 const ADMIN_LOCAL_MEDIA_DB = "sttor-local-media";
 const ADMIN_LOCAL_MEDIA_STORE = "files";
 const ADMIN_LOGO_NONE = "__none__";
-const ADMIN_ACCESS_CODE = "STTOR2026";
-const ADMIN_ACCESS_KEY = "sttor-admin-unlocked";
 
 function adminDefaults() {
   const defaults = window.STTOR_DEFAULTS;
@@ -38,7 +39,7 @@ function loadAdminState() {
   const key = window.STTOR_DEFAULTS.storageKey;
   const defaults = adminDefaults();
   try {
-    const saved = JSON.parse(localStorage.getItem(key) || "{}");
+    const saved = Admin.remoteState || JSON.parse(localStorage.getItem(key) || "{}");
     Admin.state = {
       ...defaults,
       ...saved,
@@ -121,8 +122,12 @@ async function loadPublishedContentForAdmin() {
   }
   if (typeof applyManagedContent === "function") {
     try {
-      const response = await fetch("site-data.json", { cache: "no-store" });
-      if (response.ok) applyManagedContent(await response.json());
+      let response = await fetch("/api/content", { cache: "no-store" });
+      if (!response.ok) response = await fetch("site-data.json", { cache: "no-store" });
+      if (response.ok) {
+        Admin.remoteState = await response.json();
+        applyManagedContent(Admin.remoteState);
+      }
     } catch (error) {
       console.warn("No se pudo cargar site-data.json para el admin", error);
     }
@@ -234,23 +239,77 @@ function normalizeService(item, index = 0) {
 }
 
 async function saveAdminState() {
+  if (Admin.saving) {
+    Admin.saveQueued = true;
+    return;
+  }
+  Admin.saving = true;
+  const revision = Admin.revision;
   try {
     await migrateEmbeddedMediaToLocal();
     compactMediaLibrary();
     localStorage.setItem(window.STTOR_DEFAULTS.storageKey, JSON.stringify(Admin.state));
-    Admin.dirty = false;
-    setStatus("Cambios guardados correctamente", true);
+    await publishAdminState(revision);
   } catch (error) {
     console.error(error);
     try {
       compactMediaLibrary();
       localStorage.setItem(window.STTOR_DEFAULTS.storageKey, JSON.stringify(Admin.state));
-      Admin.dirty = false;
-      setStatus("Cambios guardados. Se optimizo la biblioteca para reducir peso.", true);
+      setStatus("Guardado en este navegador; no se pudo publicar en la web. Revisa la conexion.", false);
     } catch (retryError) {
       console.error(retryError);
       setStatus("No se pudo guardar. Se intentara liberar espacio local y guardar de nuevo.", false);
     }
+  } finally {
+    Admin.saving = false;
+    if (Admin.saveQueued) {
+      Admin.saveQueued = false;
+      await saveAdminState();
+    }
+  }
+}
+
+async function publishAdminState(revision) {
+  const publishState = JSON.parse(JSON.stringify(Admin.state));
+  const refs = collectAllIdbRefs(publishState);
+  const blobs = await loadAllIdbBlobs(refs);
+  const converted = convertIdbRefsToMediaPaths(publishState, blobs, (id, blob) => {
+    if (!blob) throw new Error(`No se encontró el archivo local ${id}`);
+    return `/api/media?key=${encodeURIComponent(id)}`;
+  });
+
+  for (const ref of refs) {
+    const id = String(ref).replace(/^idb:/, "");
+    const media = blobs[id];
+    const upload = await fetch(`/api/media?key=${encodeURIComponent(id)}`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": media.type || media.blob.type || "application/octet-stream" },
+      body: media.blob
+    });
+    if (!upload.ok) throw new Error(upload.status === 413 ? "La foto supera el tamaño permitido." : "No se pudo subir una imagen o video.");
+  }
+
+  const response = await fetch("/api/content", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(converted)
+  });
+  if (!response.ok) {
+    if (response.status === 401) throw new Error("La sesión venció. Vuelve a entrar al administrador.");
+    if (response.status === 503) throw new Error("Falta configurar la clave segura del administrador en Netlify.");
+    throw new Error("Netlify no aceptó la publicación.");
+  }
+
+  Admin.remoteState = converted;
+  if (Admin.revision === revision) {
+    Admin.state = converted;
+    localStorage.setItem(window.STTOR_DEFAULTS.storageKey, JSON.stringify(converted));
+    Admin.dirty = false;
+    setStatus("Publicado en la web", true);
+  } else {
+    setStatus("Guardando los últimos cambios…", false);
   }
 }
 
@@ -333,6 +392,10 @@ async function addStaticSiteFilesToZip(zip) {
     "robots.txt",
     "sitemap.xml",
     "netlify.toml",
+    "package.json",
+    "netlify/functions/admin-session.mjs",
+    "netlify/functions/content.mjs",
+    "netlify/functions/media.mjs",
     "assets/isotipo-logo-principal.jpeg",
     "assets/isotipo-logo-principal.png",
     "assets/logo-principal-sttor.png",
@@ -465,6 +528,7 @@ function isInlineMedia(value) {
 
 function setDirty() {
   Admin.dirty = true;
+  Admin.revision += 1;
   setStatus("Guardando cambios...", false);
   window.clearTimeout(Admin.autosaveTimer);
   Admin.autosaveTimer = window.setTimeout(saveAdminState, 450);
@@ -2141,8 +2205,15 @@ function escapeAttr(value) {
   return escapeHtml(value);
 }
 
-function hasAdminAccess() {
-  return sessionStorage.getItem(ADMIN_ACCESS_KEY) === "true";
+async function hasAdminAccess() {
+  try {
+    const response = await fetch("/api/admin-session", { cache: "no-store", credentials: "same-origin" });
+    Admin.authSetupMissing = response.status === 503;
+    return response.ok;
+  } catch {
+    Admin.authSetupMissing = false;
+    return false;
+  }
 }
 
 function renderAdminAccess() {
@@ -2153,8 +2224,8 @@ function renderAdminAccess() {
       <div class="admin-access-card">
         <img src="assets/logo-sttor-transparent.png" alt="STTOR">
         <h1>Acceso administrativo</h1>
-        <p>Ingresa el codigo interno para administrar productos, imagenes y contenido.</p>
-        <label>Codigo de acceso<input class="admin-input" type="password" data-admin-access-code autocomplete="current-password" placeholder="Codigo"></label>
+        <p>Ingresa tu clave privada para administrar productos, imágenes y contenido.</p>
+        <label>Clave del administrador<input class="admin-input" type="password" data-admin-access-code autocomplete="current-password" placeholder="Tu clave"></label>
         <button class="btn primary" type="button" data-admin-access-submit>Entrar</button>
         <span class="admin-access-error" data-admin-access-error></span>
       </div>
@@ -2164,15 +2235,29 @@ function renderAdminAccess() {
   document.querySelector(".admin-topbar")?.setAttribute("hidden", "");
   document.querySelector(".save-bar")?.setAttribute("hidden", "");
   document.querySelector(".admin-app")?.classList.add("locked");
+  if (Admin.authSetupMissing) {
+    const error = document.querySelector("[data-admin-access-error]");
+    if (error) error.textContent = "Una sola vez: configura STTOR_ADMIN_PASSWORD en las variables de entorno de Netlify.";
+  }
   const submit = () => {
     const input = document.querySelector("[data-admin-access-code]");
     const error = document.querySelector("[data-admin-access-error]");
-    if ((input?.value || "").trim() === ADMIN_ACCESS_CODE) {
-      sessionStorage.setItem(ADMIN_ACCESS_KEY, "true");
-      window.location.reload();
-      return;
-    }
-    if (error) error.textContent = "Codigo incorrecto.";
+    fetch("/api/admin-session", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: (input?.value || "").trim() })
+    }).then((response) => {
+      if (response.ok) {
+        window.location.reload();
+      } else if (error) {
+        error.textContent = response.status === 503
+          ? "Falta activar la clave segura del administrador en Netlify."
+          : "Clave incorrecta.";
+      }
+    }).catch(() => {
+      if (error) error.textContent = "No se pudo conectar con Netlify. Intenta de nuevo.";
+    });
   };
   document.querySelector("[data-admin-access-submit]")?.addEventListener("click", submit);
   document.querySelector("[data-admin-access-code]")?.addEventListener("keydown", (event) => {
@@ -2181,7 +2266,7 @@ function renderAdminAccess() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  if (!hasAdminAccess()) {
+  if (!await hasAdminAccess()) {
     renderAdminAccess();
     return;
   }
