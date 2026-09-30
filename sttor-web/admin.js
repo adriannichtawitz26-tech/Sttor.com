@@ -694,7 +694,7 @@ function renderProducts() {
         </div>
         <div class="admin-table-wrap">
           <table class="admin-table">
-            <thead><tr><th>Imagen</th><th>Producto</th><th>Categoria</th><th>Precio</th><th>Stock</th><th>Destacado</th><th>Activo</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>Imagen</th><th>Producto</th><th>Categoria</th><th>Precio</th><th>Stock</th><th>Condiciones disponibles</th><th>Destacado</th><th>Activo</th><th>Acciones</th></tr></thead>
             <tbody>${products.map(renderProductRow).join("")}</tbody>
           </table>
         </div>
@@ -719,6 +719,11 @@ function renderProductRow(item) {
       <td><select class="admin-select" data-product-field="category">${Object.keys(Admin.state.products).map((key) => `<option value="${key}" ${key === item.category ? "selected" : ""}>${Admin.state.categories[key]?.title || key}</option>`).join("")}</select></td>
       <td><input class="admin-input" type="number" value="${item.price}" data-product-field="price"></td>
       <td><input class="admin-input" type="number" value="${item.stock || 0}" data-product-field="stock"></td>
+      <td>${item.category === "iphone" ? `
+        <div class="product-condition-admin" aria-label="Condiciones disponibles para ${escapeAttr(item.name)}">
+          <label class="toggle"><input type="checkbox" ${item.sealedAvailable !== false ? "checked" : ""} data-product-field="sealedAvailable"> Sellado</label>
+          <label class="toggle"><input type="checkbox" ${item.openBoxAvailable !== false ? "checked" : ""} data-product-field="openBoxAvailable"> Open Box</label>
+        </div>` : `<span class="admin-muted">Estándar</span>`}</td>
       <td><label class="toggle"><input type="checkbox" ${item.featured ? "checked" : ""} data-product-field="featured"> Destacar</label></td>
       <td><label class="toggle"><input type="checkbox" ${item.active !== false ? "checked" : ""} data-product-field="active"> Visible</label></td>
       <td><button class="tiny-btn" data-duplicate="${item.id}">Duplicar</button> <button class="tiny-btn danger" data-delete="${item.id}">Eliminar</button></td>
@@ -1278,7 +1283,17 @@ function updateProduct(event) {
   const item = findProduct(row.dataset.productId);
   const field = event.target.dataset.productField;
   if (field === "category") moveProduct(item, row.dataset.category, event.target.value);
-  else if (event.target.type === "checkbox") item[field] = event.target.checked;
+  else if (event.target.type === "checkbox") {
+    if (item.category === "iphone" && ["sealedAvailable", "openBoxAvailable"].includes(field) && !event.target.checked) {
+      const otherField = field === "sealedAvailable" ? "openBoxAvailable" : "sealedAvailable";
+      if (item[otherField] === false) {
+        event.target.checked = true;
+        setStatus("Deja al menos una condicion disponible para este iPhone.", false);
+        return;
+      }
+    }
+    item[field] = event.target.checked;
+  }
   else if (field === "price" || field === "stock") item[field] = Number(event.target.value);
   else item[field] = event.target.value;
   setDirty();
@@ -1291,6 +1306,10 @@ function findProduct(id) {
 function moveProduct(item, oldCategory, newCategory) {
   if (oldCategory === newCategory) return;
   Admin.state.products[oldCategory] = Admin.state.products[oldCategory].filter((p) => p.id !== item.id);
+  if (newCategory === "iphone") {
+    item.sealedAvailable ??= true;
+    item.openBoxAvailable ??= true;
+  }
   Admin.state.products[newCategory].push(item);
   renderAdmin();
 }

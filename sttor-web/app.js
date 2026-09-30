@@ -361,8 +361,16 @@ function prepareProducts() {
     items.forEach((item, index) => {
       item.id ||= `${category}-${slug(`${item.name}-${index}`)}`;
       item.category ||= category;
-      if (category === "iphone") item.openBoxPrice ||= Math.max(1, Math.round(item.price * 0.88));
-      else delete item.openBoxPrice;
+      if (category === "iphone") {
+        item.openBoxPrice ||= Math.max(1, Math.round(item.price * 0.88));
+        item.sealedAvailable ??= true;
+        item.openBoxAvailable ??= true;
+        if (item.sealedAvailable === false && item.openBoxAvailable === false) item.sealedAvailable = true;
+      } else {
+        delete item.openBoxPrice;
+        item.sealedAvailable ??= true;
+        item.openBoxAvailable = false;
+      }
     });
   });
 }
@@ -618,7 +626,7 @@ function renderMegaMenuContent(key) {
       <span class="mega-product-thumb">${item.image ? renderLocalAwareImage(item.image, item.name) : `<span class="product-visual ${item.visual || inferVisual(item.family)}" style="--p1:${item.p1};--p2:${item.p2}" aria-hidden="true"></span>`}</span>
       <span class="mega-product-info">
         <strong>${item.name}</strong>
-        <small>${formatPrice(item.price)}</small>
+        <small>${formatPrice(productDisplayPrice(item))}</small>
       </span>
     </button>
   `).join("");
@@ -1333,9 +1341,12 @@ function renderProductCard(item, extraClass = "") {
     ? renderLocalAwareImage(item.image, item.name, "product-image")
     : `<div class="product-visual ${visual}" style="--p1:${item.p1};--p2:${item.p2}" aria-hidden="true"></div>`;
   const rating = productRating(item.name);
-  const beforePrice = item.beforePrice || previousPrice(item.price);
+  const sealedAvailable = item.category !== "iphone" || item.sealedAvailable !== false;
+  const openBoxAvailable = item.category === "iphone" && item.openBoxAvailable !== false;
+  const cardPrice = productDisplayPrice(item);
+  const beforePrice = sealedAvailable ? (item.beforePrice || previousPrice(item.price)) : previousPrice(cardPrice);
   const isComparing = typeof window !== "undefined" && window.__comparingProducts?.has(item.id);
-  const openBoxNote = item.openBoxPrice ? `<span class="open-box-note">Open Box: ${formatPrice(item.openBoxPrice)}</span>` : "";
+  const openBoxNote = sealedAvailable && openBoxAvailable ? `<span class="open-box-note">Open Box: ${formatPrice(item.openBoxPrice || Math.round(item.price * 0.88))}</span>` : "";
   return `
     <article class="product-card reveal ${extraClass}" data-product-card="${item.id}">
       <button class="compare-toggle ${isComparing ? "active" : ""}" type="button" data-compare-toggle="${item.id}" aria-label="Agregar ${item.name} a comparador" title="Comparar">
@@ -1355,7 +1366,7 @@ function renderProductCard(item, extraClass = "") {
       <div class="price-row">
         <span>
           <span class="old-price">${formatPrice(beforePrice)}</span>
-          <span class="price">${formatPrice(item.price)}</span>
+          <span class="price">${formatPrice(cardPrice)}</span>
         </span>
         <span class="mini-meta">${item.color}</span>
       </div>
@@ -1378,6 +1389,13 @@ function productRating(name) {
 
 function previousPrice(price) {
   return Math.round(Number(price || 0) * 1.12 / 10) * 10;
+}
+
+function productDisplayPrice(item) {
+  if (item?.category === "iphone" && item.sealedAvailable === false && item.openBoxAvailable !== false) {
+    return Number(item.openBoxPrice || Math.round(Number(item.price || 0) * 0.88));
+  }
+  return Number(item?.price || 0);
 }
 
 function renderReviewRating(item) {
@@ -1623,7 +1641,7 @@ function renderCompareSummary(products) {
     ["storage", "Capacidad", (item) => productSpecs(item).storage],
     ["connect", "Conexion", (item) => productSpecs(item).connectivity],
     ["target", "Ideal para", (item) => productSpecs(item).ideal],
-    ["openbox", "Open Box", (item) => item.category === "iphone" ? formatPrice(item.openBoxPrice || Math.round(item.price * 0.88)) : "No aplica"]
+    ["openbox", "Open Box", (item) => item.category === "iphone" ? (item.openBoxAvailable === false ? "No disponible" : formatPrice(item.openBoxPrice || Math.round(item.price * 0.88))) : "No aplica"]
   ];
 
   return `
@@ -1672,8 +1690,8 @@ function compareRows(products) {
     ["compat", "Compatibilidad", (item) => productSpecs(item).compatibility],
     ["target", "Ideal para", (item) => productSpecs(item).ideal],
     ["color", "Color", (item) => item.color || "Consultar"],
-    ["price", "Precio sellado", (item) => formatPrice(item.price)],
-    ["openbox", "Open box", (item) => item.category === "iphone" ? formatPrice(item.openBoxPrice || Math.round(item.price * 0.88)) : "No aplica"]
+    ["price", "Precio sellado", (item) => item.category === "iphone" && item.sealedAvailable === false ? "No disponible" : formatPrice(item.price)],
+    ["openbox", "Open box", (item) => item.category === "iphone" ? (item.openBoxAvailable === false ? "No disponible" : formatPrice(item.openBoxPrice || Math.round(item.price * 0.88))) : "No aplica"]
   ];
   return labels.map(([icon, label, getter]) => ({
     icon,
@@ -2414,10 +2432,13 @@ function openProductModal(id) {
   if (!product) return;
   const modal = qs("[data-product-modal]");
   const dialog = qs("[data-product-dialog]");
-  const canOpenBox = product.category === "iphone";
+  const canSeal = product.category !== "iphone" || product.sealedAvailable !== false;
+  const canOpenBox = product.category === "iphone" && product.openBoxAvailable !== false;
+  if (!canSeal && !canOpenBox) return;
   const openBox = canOpenBox ? product.openBoxPrice || Math.round(product.price * 0.88) : 0;
   const beforePrice = product.beforePrice || previousPrice(product.price);
   const openBoxBefore = previousPrice(openBox || product.price);
+  const defaultPrice = canSeal ? product.price : openBox;
   dialog.innerHTML = `
     <button class="icon-close modal-close" type="button" data-close-commerce aria-label="Cerrar">×</button>
     <div class="product-dialog-grid">
@@ -2433,16 +2454,16 @@ function openProductModal(id) {
           <span>Color: <strong>${product.color}</strong></span>
           <span>Estado: <strong>Stock consultable</strong></span>
         </div>
-        <div class="condition-grid ${canOpenBox ? "" : "single"}" data-condition-grid>
-          <label class="condition-card active">
+        <div class="condition-grid ${canSeal && canOpenBox ? "" : "single"}" data-condition-grid>
+          ${canSeal ? `<label class="condition-card active">
             <input type="radio" name="product-condition" value="Sellado" data-price="${product.price}" checked>
             <span>Equipo sellado</span>
             <em>${formatPrice(beforePrice)}</em>
             <strong>${formatPrice(product.price)}</strong>
-          </label>
+          </label>` : ""}
           ${canOpenBox ? `
-          <label class="condition-card">
-            <input type="radio" name="product-condition" value="Open box" data-price="${openBox}">
+          <label class="condition-card ${canSeal ? "" : "active"}">
+            <input type="radio" name="product-condition" value="Open box" data-price="${openBox}" ${canSeal ? "" : "checked"}>
             <span>Open box</span>
             <em>${formatPrice(openBoxBefore)}</em>
             <strong>${formatPrice(openBox)}</strong>
@@ -2453,7 +2474,7 @@ function openProductModal(id) {
           <label>Cantidad</label>
           <input type="number" min="1" value="1" data-product-qty>
         </div>
-        <div class="modal-total"><span>Total</span><strong data-modal-total>${formatPrice(product.price)}</strong></div>
+        <div class="modal-total"><span>Total</span><strong data-modal-total>${formatPrice(defaultPrice)}</strong></div>
         <button class="btn primary" type="button" data-add-to-cart="${product.id}">Agregar al carrito</button>
         <button class="btn checkout-now" type="button" data-add-to-cart="${product.id}" data-open-checkout>Comprar ahora</button>
       </div>
@@ -2510,6 +2531,10 @@ function addCurrentProductToCart(id) {
 function buyProductNow(id) {
   const product = findProductById(id);
   if (!product) return;
+  if (product.category === "iphone" && product.sealedAvailable === false && product.openBoxAvailable !== false) {
+    quickBuy(product, "Open box", Number(product.openBoxPrice || Math.round(product.price * 0.88)), 1);
+    return;
+  }
   quickBuy(product, "Sellado", Number(product.price), 1);
 }
 

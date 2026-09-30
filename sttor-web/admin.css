@@ -2071,3 +2071,8 @@ body.admin-shell {
     min-height: 48px !important;
   }
 }
+.product-condition-admin {
+  display: grid;
+  gap: 7px;
+  min-width: 118px;
+}
