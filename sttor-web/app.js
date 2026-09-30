@@ -38,6 +38,7 @@ const LOGO_SIZES = {
 
 const NAV = [
   ["Inicio", "index.html", "home"],
+  ["Experiencias", "experiencias.html", "experiencias"],
   ["iPhone", "iphone.html", "iphone"],
   ["Mac", "mac.html", "mac"],
   ["iPad", "ipad.html", "ipad"],
@@ -728,6 +729,10 @@ function boot() {
   initReveal();
   initHomeParallax();
   initScrollDecorations();
+  if (page === "experiencias") {
+    renderExperiences();
+    initExperienceParallax();
+  }
   initHomeHero();
   initCarousels();
   initCommerce();
@@ -894,6 +899,122 @@ function renderHome() {
     ${renderHomeFaqSection()}
     ${renderLocationSection()}
   `);
+}
+
+function renderExperiences() {
+  const scenes = [
+    {
+      id: "iphone",
+      number: "01",
+      category: "iPhone 18 Pro",
+      title: "Un mundo en cada toma.",
+      copy: "Diseñado para crear, descubrir y guardar tus momentos favoritos. Conoce el iPhone 18 Pro en movimiento.",
+      video: "assets/experiencias/iphone-18-pro.mp4",
+      tone: "iphone",
+      link: "iphone.html",
+      message: "Hola STTOR, quiero consultar por el iPhone 18 Pro y su disponibilidad."
+    },
+    {
+      id: "macbook",
+      number: "02",
+      category: "MacBook Neo",
+      title: "Ideas que toman forma.",
+      copy: "Una Mac para llevar tus proyectos a donde vayas. Mírala desde todos los ángulos y consulta las opciones disponibles.",
+      video: "assets/experiencias/macbook-neo.webm",
+      tone: "macbook",
+      link: "mac.html",
+      message: "Hola STTOR, quiero consultar por la MacBook Neo y su disponibilidad."
+    },
+    {
+      id: "airpods",
+      number: "03",
+      category: "AirPods Max 2",
+      title: "Entra en tu propio espacio.",
+      copy: "Una experiencia de audio pensada para acompañar tus momentos. Descubre su diseño y pregúntanos por disponibilidad.",
+      video: "assets/experiencias/airpods-max-2.mp4",
+      tone: "airpods",
+      link: "airpods.html",
+      message: "Hola STTOR, quiero consultar por los AirPods Max 2 y su disponibilidad."
+    }
+  ];
+
+  layoutShell(`
+    <div class="experiences-page">
+      <section class="exp-intro">
+        <span class="exp-intro-mark">STTOR · EXPERIENCIAS</span>
+        <h1>Tecnología que<br><span>se siente.</span></h1>
+        <p>Una pausa para descubrir de cerca los productos que te inspiran.</p>
+        <a class="exp-scroll-cue" href="#exp-iphone"><span aria-hidden="true">↓</span> Desliza para explorar</a>
+      </section>
+      ${scenes.map((scene) => `
+        <section class="exp-scene exp-scene--${scene.tone}" id="exp-${scene.id}" data-exp-scene aria-label="${scene.category}">
+          <div class="exp-scene-stage">
+            <div class="exp-video-wrap" aria-hidden="true">
+              <video class="exp-video" data-experience-video data-src="${scene.video}" muted playsinline loop preload="none" tabindex="-1"></video>
+            </div>
+            <div class="exp-scene-shade"></div>
+            <div class="exp-scene-copy">
+              <span class="exp-scene-number">${scene.number} / 03&nbsp;&nbsp; · &nbsp;&nbsp;${scene.category}</span>
+              <h2>${scene.title}</h2>
+              <p>${scene.copy}</p>
+              <div class="exp-scene-actions">
+                <a class="exp-button exp-button--light" href="${whatsappUrl(scene.message)}" target="_blank" rel="noopener">Consultar disponibilidad <span aria-hidden="true">↗</span></a>
+                <a class="exp-text-link" href="${scene.link}">Explorar categoría</a>
+              </div>
+            </div>
+            <span class="exp-scene-side-note">${scene.category}</span>
+          </div>
+        </section>
+      `).join("")}
+      <section class="exp-outro">
+        <span class="exp-intro-mark">STTOR · ICA</span>
+        <h2>Tu próxima historia<br>empieza aquí.</h2>
+        <p>Cuéntanos qué estás buscando. Te ayudamos a comparar opciones y confirmar disponibilidad.</p>
+        <a class="exp-button exp-button--dark" href="${whatsappUrl("Hola STTOR, ayúdame a elegir un producto Apple.")}" target="_blank" rel="noopener">Hablemos por WhatsApp <span aria-hidden="true">↗</span></a>
+      </section>
+    </div>
+  `);
+}
+
+function initExperienceParallax() {
+  const scenes = qsa("[data-exp-scene]");
+  if (!scenes.length) return;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      const video = qs("[data-experience-video]", entry.target);
+      if (!video) return;
+      if (entry.isIntersecting) {
+        if (!video.src) {
+          video.src = video.dataset.src;
+          video.load();
+        }
+        if (!reduceMotion) video.play().catch(() => {});
+      } else {
+        video.pause();
+      }
+    });
+  }, { rootMargin: "180px 0px", threshold: 0.01 });
+  scenes.forEach((scene) => observer.observe(scene));
+
+  let queued = false;
+  const update = () => {
+    queued = false;
+    const viewport = window.innerHeight || 1;
+    scenes.forEach((scene) => {
+      const rect = scene.getBoundingClientRect();
+      const progress = Math.max(-1, Math.min(1, (viewport * 0.5 - (rect.top + rect.height * 0.5)) / (rect.height * 0.5)));
+      scene.style.setProperty("--exp-progress", progress.toFixed(3));
+    });
+  };
+  const onScroll = () => {
+    if (queued) return;
+    queued = true;
+    window.requestAnimationFrame(update);
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll, { passive: true });
+  update();
 }
 
 function renderHomeHelpSection() {
@@ -2820,6 +2941,7 @@ function renderFooter() {
       </div>
       <nav class="footer-column" aria-label="Explora productos">
         <h3>Explora</h3>
+        <a href="experiencias.html">Experiencias STTOR</a>
         <a href="iphone.html">iPhone</a>
         <a href="mac.html">Mac</a>
         <a href="ipad.html">iPad</a>
