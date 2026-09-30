@@ -271,7 +271,7 @@ async function saveAdminState() {
 }
 
 async function publishAdminState(revision) {
-  const publishState = JSON.parse(JSON.stringify(Admin.state));
+  let publishState = JSON.parse(JSON.stringify(Admin.state));
   let refs = collectAllIdbRefs(publishState);
   const blobs = await loadAllIdbBlobs(refs);
 
@@ -279,20 +279,12 @@ async function publishAdminState(revision) {
     const id = String(ref).replace(/^idb:/, "");
     return !blobs[id];
   }));
-  const contentState = { ...publishState, media: [] };
-  const missingContentRefs = [...collectAllIdbRefs(contentState)].filter((ref) => missingRefs.has(ref));
-  if (missingContentRefs.length) {
-    throw new Error("Una foto asignada a un producto o sección ya no está guardada en este navegador. Vuelve a cargarla en el administrador.");
-  }
-
-  let removedMissingMedia = 0;
-  if (missingRefs.size && Array.isArray(publishState.media)) {
-    publishState.media = publishState.media.filter((item) => {
-      const itemRefs = collectAllIdbRefs(item);
-      const hasMissingFile = [...itemRefs].some((ref) => missingRefs.has(ref));
-      if (hasMissingFile) removedMissingMedia += 1;
-      return !hasMissingFile;
-    });
+  const recoveredMedia = { restored: 0, cleared: 0 };
+  if (missingRefs.size) {
+    publishState = restoreUnavailableLocalMedia(publishState, Admin.remoteState || {}, missingRefs, recoveredMedia);
+    if (Array.isArray(publishState.media)) {
+      publishState.media = publishState.media.filter((item) => item.src || item.url);
+    }
   }
 
   refs = collectAllIdbRefs(publishState);
@@ -330,8 +322,8 @@ async function publishAdminState(revision) {
     Admin.state = converted;
     localStorage.setItem(window.STTOR_DEFAULTS.storageKey, JSON.stringify(converted));
     Admin.dirty = false;
-    const cleanupMessage = removedMissingMedia
-      ? ` Se omitieron ${removedMissingMedia} foto(s) que faltaban en la biblioteca; vuelve a cargarlas si aún las necesitas.`
+    const cleanupMessage = missingRefs.size
+      ? ` No se encontró ${missingRefs.size} foto(s) local(es); se conservó la imagen publicada anterior cuando estuvo disponible. Vuelve a cargar la(s) foto(s) faltante(s) si quieres usarla(s).`
       : "";
     setStatus(`Publicado en la web.${cleanupMessage}`, true);
   } else {
@@ -466,6 +458,38 @@ function collectAllIdbRefs(obj, refs = new Set()) {
   else if (Array.isArray(obj)) obj.forEach((item) => collectAllIdbRefs(item, refs));
   else if (obj && typeof obj === "object") Object.values(obj).forEach((val) => collectAllIdbRefs(val, refs));
   return refs;
+}
+
+function restoreUnavailableLocalMedia(current, published, missingRefs, stats) {
+  if (typeof current === "string" && missingRefs.has(current)) {
+    const fallback = typeof published === "string" && !isLocalMediaRef(published) ? published : "";
+    if (fallback) stats.restored += 1;
+    else stats.cleared += 1;
+    return fallback;
+  }
+  if (Array.isArray(current)) {
+    const publishedByKey = new Map((Array.isArray(published) ? published : [])
+      .map((item) => [mediaFallbackKey(item), item])
+      .filter(([key]) => key));
+    return current.map((item, index) => {
+      const key = mediaFallbackKey(item);
+      const previous = key ? publishedByKey.get(key) : published?.[index];
+      return restoreUnavailableLocalMedia(item, previous, missingRefs, stats);
+    });
+  }
+  if (current && typeof current === "object") {
+    const result = {};
+    for (const [key, value] of Object.entries(current)) {
+      result[key] = restoreUnavailableLocalMedia(value, published?.[key], missingRefs, stats);
+    }
+    return result;
+  }
+  return current;
+}
+
+function mediaFallbackKey(item) {
+  if (!item || typeof item !== "object") return "";
+  return item.id || item.slot || item.title || item.productName || item.name || "";
 }
 
 async function loadAllIdbBlobs(idbRefs) {
