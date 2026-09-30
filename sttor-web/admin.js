@@ -6,7 +6,8 @@ const Admin = {
   autosaveTimer: null,
   revision: 0,
   saving: false,
-  saveQueued: false
+  saveQueued: false,
+  localDraftDetected: false
 };
 
 const IMAGE_ACCEPT = ".webp,.jpg,.jpeg,.png,.svg,.avif,.gif,.bmp,.tif,.tiff,.ico,image/webp,image/jpeg,image/png,image/svg+xml,image/avif,image/gif,image/bmp,image/tiff,image/x-icon";
@@ -39,7 +40,15 @@ function loadAdminState() {
   const key = window.STTOR_DEFAULTS.storageKey;
   const defaults = adminDefaults();
   try {
-    const saved = Admin.remoteState || JSON.parse(localStorage.getItem(key) || "{}");
+    const local = JSON.parse(localStorage.getItem(key) || "{}");
+    const hasLocal = local && Object.keys(local).length > 0;
+    const hasRemote = Admin.remoteState && Object.keys(Admin.remoteState).length > 0;
+    const localDiffers = hasLocal && hasRemote && stableAdminJson(local) !== stableAdminJson(Admin.remoteState);
+    // A failed publish writes a recoverable draft to localStorage before the
+    // request reaches Netlify. Prefer that draft on the next admin load.
+    const saved = localDiffers ? local : (hasRemote ? Admin.remoteState : local);
+    Admin.localDraftDetected = Boolean(localDiffers);
+    Admin.dirty = Admin.localDraftDetected;
     Admin.state = {
       ...defaults,
       ...saved,
@@ -2324,6 +2333,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadPublishedContentForAdmin();
   loadAdminState();
   renderAdmin();
+  if (Admin.localDraftDetected) {
+    setStatus("Hay cambios guardados en este navegador que aún no se publicaron. Pulsa Guardar para intentarlo de nuevo.", false);
+  }
   document.querySelectorAll("[data-admin-tab]").forEach((btn) => btn.addEventListener("click", () => switchTab(btn.dataset.adminTab)));
   document.querySelectorAll("[data-save]").forEach((btn) => btn.addEventListener("click", saveAdminState));
   document.querySelectorAll("[data-export-publish]").forEach((btn) => btn.addEventListener("click", exportPublishData));
@@ -2333,3 +2345,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     else renderAdmin();
   });
 });
+
+function stableAdminJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableAdminJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableAdminJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
