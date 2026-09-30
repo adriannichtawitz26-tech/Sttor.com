@@ -1763,12 +1763,41 @@ function createCategory() {
 
 async function uploadProductImage(id, file) {
   if (!file) return;
+  if (!isSupportedImage(file)) {
+    setStatus("El archivo no es una imagen compatible. Usa JPG, PNG, WEBP, GIF o AVIF.", false);
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    setStatus("La imagen supera el limite de 5 MB. Reduce su tamaño y vuelve a subirla.", false);
+    return;
+  }
+
   const item = findProduct(id);
-  const stored = await storeLocalMedia(file);
-  item.image = stored.ref;
-  item.mediaType = "image";
-  setDirty();
-  renderAdmin();
+  if (!item) return;
+  const key = `media-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  setStatus("Subiendo imagen a Netlify…", true);
+  try {
+    const upload = await fetch(`/api/media?key=${encodeURIComponent(key)}`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file
+    });
+    if (!upload.ok) {
+      if (upload.status === 401) throw new Error("La sesion del administrador vencio. Vuelve a entrar.");
+      if (upload.status === 413) throw new Error("La imagen supera el limite de 5 MB.");
+      if (upload.status === 415) throw new Error("Netlify no reconoce el formato de esta imagen. Prueba JPG o PNG.");
+      if (upload.status === 503) throw new Error("Falta activar STTOR_ADMIN_PASSWORD en Netlify.");
+      throw new Error("Netlify no pudo recibir la imagen. Revisa tu conexion e intenta otra vez.");
+    }
+    item.image = `/api/media?key=${encodeURIComponent(key)}`;
+    item.mediaType = "image";
+    setDirty();
+    renderAdmin();
+  } catch (error) {
+    console.error(error);
+    setStatus(error instanceof Error && error.message ? error.message : "No se pudo subir la imagen a Netlify.", false);
+  }
 }
 
 async function uploadHomeSlideImage(index, file) {
