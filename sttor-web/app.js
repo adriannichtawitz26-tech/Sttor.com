@@ -208,16 +208,32 @@ const PROMOTIONS = [
 
 const INFO_PAGES = {
   garantia: {
-    eyebrow: "Compra segura",
-    title: "Garantia y acompanamiento STTOR.",
-    copy: "Te explicamos el estado del producto, condiciones de venta y soporte disponible antes de confirmar tu compra.",
+    eyebrow: "Garantía y condiciones",
+    title: "Compra con las condiciones claras desde el inicio.",
+    copy: "Antes de pagar, confirma el estado del equipo, la disponibilidad, el precio final y la cobertura aplicable a ese producto. Te orientamos directamente desde Ica.",
+    heroAside: "Cada producto puede tener condiciones distintas. Te las confirmamos antes de cerrar la compra.",
+    heroAsideLabel: "Información transparente",
     blocks: [
-      ["Equipos sellados", "Productos nuevos segun stock disponible, con verificacion de modelo, color y capacidad antes de la entrega.", "✓"],
-      ["Open Box iPhone", "Alternativa mas economica para iPhone seleccionados, revisada y explicada antes de pagar.", "OB"],
-      ["Soporte por WhatsApp", "Acompanamiento directo para dudas de configuracion, accesorios, stock y recojo en tienda.", "W"],
-      ["Servicio tecnico", "Diagnostico independiente para reparaciones, baterias, pantallas, software y liberaciones.", "ST"]
+      ["Estado del equipo", "Te indicamos si la unidad disponible es sellada u Open Box y qué incluye. La disponibilidad cambia según el modelo y el stock.", "01"],
+      ["Cobertura informada", "La cobertura y su vigencia se confirman para cada producto antes de pagar. Pide que esta información quede indicada en la cotización o comprobante.", "02"],
+      ["Ayuda después de la compra", "Si tienes una consulta, escríbenos con tu comprobante y los detalles del caso. Te indicaremos cómo continuar y qué revisión corresponde.", "03"],
+      ["Servicio técnico", "Para reparaciones coordinamos primero la evaluación y el presupuesto. El trabajo se realiza con tu aprobación.", "04"]
     ],
-    cta: "Consultar garantia"
+    cta: "Consultar condiciones",
+    stepsTitle: "Antes de confirmar tu compra",
+    stepsCopy: "Estos datos te ayudan a elegir con tranquilidad y evitan sorpresas al coordinar el recojo o la entrega.",
+    steps: [
+      ["Confirma el producto", "Modelo, capacidad, color y condición exacta de la unidad disponible."],
+      ["Revisa el total", "Precio final, forma de pago y cualquier costo de entrega se confirman antes de pagar."],
+      ["Guarda tu comprobante", "Conserva la cotización y el comprobante para cualquier consulta posterior."]
+    ],
+    detailTitle: "Si necesitas atención",
+    details: [
+      ["Productos", "Contáctanos por WhatsApp, indícanos el modelo y describe el inconveniente. Adjunta tu comprobante para ubicar la compra y orientarte sobre los siguientes pasos."],
+      ["Reparaciones", "El diagnóstico y el presupuesto se coordinan antes de iniciar el trabajo. Si autorizas la reparación, te explicamos el seguimiento y el recojo."],
+      ["Tus derechos", "Estas condiciones complementan la información de cada venta y no limitan los derechos que te reconoce la normativa de protección al consumidor."]
+    ],
+    rightsLink: "https://consumidor.gob.pe/codigo-del-consumidor/"
   },
   faq: {
     eyebrow: "Preguntas frecuentes",
@@ -232,16 +248,31 @@ const INFO_PAGES = {
     cta: "Hacer una pregunta"
   },
   sobre: {
-    eyebrow: "Quienes somos",
-    title: "STTOR es una tienda Apple y servicio tecnico en Ica.",
-    copy: "Trabajamos con una experiencia simple: productos claros, precios visibles, comunicacion directa y una ubicacion real para atenderte.",
+    eyebrow: "Quiénes somos",
+    title: "Tecnología Apple y atención cercana, aquí en Ica.",
+    copy: "STTOR reúne productos Apple, accesorios y servicio técnico en un mismo lugar. Te ayudamos a comparar opciones, confirmar disponibilidad y resolver tus dudas antes de decidir.",
+    heroAside: "Estamos en Av. San Martín 159, Ica. Puedes visitarnos o escribirnos para coordinar tu consulta.",
+    heroAsideLabel: "Atención local",
     blocks: [
-      ["Atencion local", "Estamos en Ica para que puedas consultar, recoger y recibir soporte presencial.", "IC"],
-      ["Catalogo Apple", "iPhone, Mac, iPad, AirPods, Apple Watch y accesorios para completar tu compra.", "AP"],
-      ["Servicio especializado", "Diagnostico documentado y comunicacion por WhatsApp durante el proceso.", "FX"],
-      ["Datos visibles", `Nombre comercial: ${BUSINESS.legalName || "STTOR corporation"} · RUC: ${BUSINESS.ruc}`, "ID"]
+      ["Asesoría clara", "Comparamos modelos y opciones según lo que necesitas. Confirmamos precio, stock y condición antes de coordinar la compra.", "01"],
+      ["Un catálogo para tu ecosistema", "Encuentra iPhone, Mac, iPad, AirPods, Apple Watch y accesorios en un solo lugar.", "02"],
+      ["Servicio técnico con seguimiento", "Coordinamos la evaluación y el presupuesto antes de reparar, y te mantenemos informado durante el proceso.", "03"],
+      ["Una tienda en Ica", `${BUSINESS.address}. Atención presencial y consultas por WhatsApp en el horario publicado.`, "04"]
     ],
-    cta: "Contactar STTOR"
+    cta: "Hablar con STTOR",
+    stepsTitle: "Así te ayudamos",
+    stepsCopy: "Un proceso directo, tanto si buscas un equipo como si necesitas soporte técnico.",
+    steps: [
+      ["Cuéntanos qué buscas", "Dinos qué equipo necesitas, para qué lo usarás y qué presupuesto tienes en mente."],
+      ["Revisamos opciones y stock", "Te compartimos las alternativas disponibles y aclaramos las diferencias entre ellas."],
+      ["Coordina tu siguiente paso", "Puedes resolver dudas, coordinar una visita o consultar las opciones de recojo y entrega."]
+    ],
+    detailTitle: "Lo que puedes esperar de STTOR",
+    details: [
+      ["Información antes de comprar", "Te ayudamos a confirmar modelo, capacidad, condición, precio y disponibilidad antes de realizar el pago."],
+      ["Atención directa", "Puedes comunicarte con el equipo por WhatsApp o visitarnos en nuestra tienda de Ica."],
+      ["Acompañamiento", "Si tienes una duda sobre tu equipo, accesorios o una reparación, estamos disponibles para orientarte."]
+    ]
   }
 };
 
@@ -695,6 +726,7 @@ function boot() {
   hydrateLocalDecorMedia();
   hydrateLocalMediaElements();
   initReveal();
+  initHomeParallax();
   initScrollDecorations();
   initHomeHero();
   initCarousels();
@@ -915,17 +947,28 @@ function renderInfoPage(key) {
   const page = INFO_PAGES[key];
   layoutShell(`
     <section class="section info-hero-page">
-      <div class="info-hero-panel reveal">
-        <span class="eyebrow">${page.eyebrow}</span>
-        <h1>${page.title}</h1>
-        <p>${page.copy}</p>
-        <div class="cta-row">
-          <a class="btn primary" href="${whatsappUrl(`Hola STTOR, quiero informacion sobre ${page.eyebrow}.`)}" target="_blank" rel="noopener">${page.cta}</a>
-          <a class="btn" href="index.html">Volver al inicio</a>
+      <div class="info-hero-panel info-hero-panel--${key} reveal">
+        <div class="info-hero-copy">
+          <span class="eyebrow">${page.eyebrow}</span>
+          <h1>${page.title}</h1>
+          <p>${page.copy}</p>
+          <div class="cta-row">
+            <a class="btn primary" href="${whatsappUrl(`Hola STTOR, quiero informacion sobre ${page.eyebrow}.`)}" target="_blank" rel="noopener">${page.cta}</a>
+            <a class="btn" href="index.html">Volver al inicio</a>
+          </div>
         </div>
+        <aside class="info-hero-aside">
+          <span>${page.heroAsideLabel || "STTOR · ICA"}</span>
+          <p>${page.heroAside}</p>
+          <a href="${whatsappUrl(`Hola STTOR, quiero informacion sobre ${page.eyebrow}.`)}" target="_blank" rel="noopener">Escríbenos por WhatsApp <span aria-hidden="true">↗</span></a>
+        </aside>
       </div>
     </section>
     <section class="section info-grid-section">
+      <div class="info-section-heading">
+        <span class="eyebrow">${key === "sobre" ? "Nuestro enfoque" : "Lo que debes saber"}</span>
+        <h2>${key === "sobre" ? "Una experiencia simple y transparente." : "Información importante, explicada con claridad."}</h2>
+      </div>
       <div class="info-card-grid">
         ${page.blocks.map(([title, copy, icon]) => `
           <article class="info-card reveal">
@@ -936,6 +979,41 @@ function renderInfoPage(key) {
         `).join("")}
       </div>
     </section>
+    ${page.steps?.length ? `
+      <section class="section info-steps-section">
+        <div class="info-section-heading">
+          <span class="eyebrow">${key === "sobre" ? "Atención STTOR" : "Compra informada"}</span>
+          <h2>${page.stepsTitle}</h2>
+          <p>${page.stepsCopy}</p>
+        </div>
+        <div class="info-steps-grid">
+          ${page.steps.map(([title, copy], index) => `
+            <article class="info-step-card reveal">
+              <span>${String(index + 1).padStart(2, "0")}</span>
+              <h3>${title}</h3>
+              <p>${copy}</p>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    ` : ""}
+    ${page.details?.length ? `
+      <section class="section info-details-section">
+        <div class="info-section-heading">
+          <span class="eyebrow">STTOR responde</span>
+          <h2>${page.detailTitle}</h2>
+        </div>
+        <div class="info-details-grid">
+          ${page.details.map(([title, copy]) => `
+            <article class="info-detail-card reveal">
+              <h3>${title}</h3>
+              <p>${copy}</p>
+            </article>
+          `).join("")}
+        </div>
+        ${page.rightsLink ? `<p class="info-rights-note">Para conocer tus derechos como consumidor, consulta la información oficial del <a href="${page.rightsLink}" target="_blank" rel="noopener">Código del Consumidor de Indecopi ↗</a>.</p>` : ""}
+      </section>
+    ` : ""}
     ${renderLocationSection()}
   `);
 }
@@ -2013,6 +2091,50 @@ function initReveal() {
   });
 }
 
+let homeParallaxTicking = false;
+let homeParallaxBound = false;
+
+function initHomeParallax() {
+  if (document.body.dataset.page !== "home" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const targets = [
+    ...qsa("[data-home-hero] .home-banner-device"),
+    ...qsa("[data-home-hero] .home-banner-offer"),
+    ...qsa(".home-category-strip .home-category-image"),
+    ...qsa(".home-catalog-section .product-media"),
+    ...qsa(".home-service-list .service-image")
+  ];
+  if (!targets.length) return;
+  targets.forEach((node) => {
+    if (node.dataset.parallaxReady) return;
+    node.dataset.parallaxReady = "true";
+    node.classList.add("sttor-parallax");
+    node.dataset.parallaxRange = node.matches(".home-banner-device") ? "42" : node.matches(".home-banner-offer") ? "18" : "14";
+  });
+  if (!homeParallaxBound) {
+    homeParallaxBound = true;
+    window.addEventListener("scroll", requestHomeParallaxUpdate, { passive: true });
+    window.addEventListener("resize", requestHomeParallaxUpdate, { passive: true });
+  }
+  requestHomeParallaxUpdate();
+}
+
+function requestHomeParallaxUpdate() {
+  if (homeParallaxTicking) return;
+  homeParallaxTicking = true;
+  window.requestAnimationFrame(() => {
+    homeParallaxTicking = false;
+    const mobileScale = window.innerWidth <= 600 ? 0.4 : window.innerWidth <= 900 ? 0.65 : 1;
+    qsa(".sttor-parallax").forEach((node) => {
+      const rect = node.getBoundingClientRect();
+      if (rect.bottom < -100 || rect.top > window.innerHeight + 100) return;
+      const distance = (window.innerHeight * 0.5 - (rect.top + rect.height * 0.5)) / Math.max(window.innerHeight, 1);
+      const range = Number(node.dataset.parallaxRange || 14) * mobileScale;
+      const offset = Math.max(-1, Math.min(1, distance * 1.5)) * range;
+      node.style.setProperty("--sttor-parallax-y", `${offset.toFixed(1)}px`);
+    });
+  });
+}
+
 let scrollDecorTicking = false;
 let scrollDecorBound = false;
 
@@ -2676,55 +2798,51 @@ function checkoutCart() {
 function renderFooter() {
   const footer = qs("[data-footer]");
   if (!footer) return;
-  const embed = mapEmbedUrl();
   footer.innerHTML = `
+    <div class="footer-cta-wrap">
+      <div class="footer-cta">
+        <div>
+          <span class="footer-kicker">STTOR · ICA</span>
+          <h2>¿Buscas un equipo o necesitas ayuda?</h2>
+          <p>Te orientamos sobre productos, disponibilidad y servicio técnico.</p>
+        </div>
+        <div class="footer-cta-actions">
+          <a class="footer-cta-primary" href="${whatsappUrl("Hola STTOR, necesito ayuda para elegir un equipo o consultar un servicio.")}" target="_blank" rel="noopener">Hablar por WhatsApp <span aria-hidden="true">↗</span></a>
+          <a class="footer-cta-secondary" href="iphone.html">Explorar productos</a>
+        </div>
+      </div>
+    </div>
     <div class="footer-inner">
       <div class="footer-brand">
         ${renderLocalAwareImage(logo("main"), "STTOR", "footer-logo")}
-        <p>Venta de iPhone, MacBook, iPad, Apple Watch, AirPods y accesorios Apple en Ica, con cotizaciones por WhatsApp para Ica y Lima.</p>
-        <p><strong>Nombre comercial completo:</strong> ${BUSINESS.legalName || "STTOR corporation"}</p>
-        <p><strong>RUC:</strong> ${BUSINESS.ruc}</p>
+        <p>Productos Apple, accesorios y servicio técnico con atención directa en Ica.</p>
+        <p class="footer-legal">${BUSINESS.legalName || "STTOR corporation"}<br>RUC ${BUSINESS.ruc}</p>
       </div>
-      <div>
-        <h3>Contáctanos</h3>
-        <a href="${whatsappUrl("Hola STTOR, deseo informacion.")}" target="_blank" rel="noopener">WhatsApp ${BUSINESS.phone}</a>
-        <span>${BUSINESS.hours}</span>
-        <span>${BUSINESS.address}</span>
-      </div>
-      <div>
-        <h3>Información</h3>
+      <nav class="footer-column" aria-label="Explora productos">
+        <h3>Explora</h3>
         <a href="iphone.html">iPhone</a>
         <a href="mac.html">Mac</a>
         <a href="ipad.html">iPad</a>
+        <a href="airpods.html">AirPods</a>
+        <a href="watch.html">Apple Watch</a>
         <a href="accesorios.html">Accesorios</a>
-      </div>
-      <div>
-        <h3>Quiénes Somos</h3>
+      </nav>
+      <nav class="footer-column" aria-label="Información y ayuda">
+        <h3>Información y ayuda</h3>
         <a href="sobre-sttor.html">Sobre STTOR</a>
-        <span>Tienda especializada en tecnologia Apple en Ica.</span>
-        <span>Atencion presencial en Av. San Martin 159, Ica.</span>
-        <span>Asesoria antes y despues de la compra para clientes de Ica y Lima.</span>
-      </div>
-      <div>
-        <h3>Ayuda</h3>
-        <a href="servicio-tecnico.html">Servicio tecnico</a>
-        <a href="garantia.html">Garantia y condiciones</a>
+        <a href="garantia.html">Garantía y condiciones</a>
         <a href="preguntas-frecuentes.html">Preguntas frecuentes</a>
-        <a href="${BUSINESS.maps}" target="_blank" rel="noopener">Como llegar</a>
-        <a href="${BUSINESS.appleMaps || BUSINESS.maps}" target="_blank" rel="noopener">Apple Maps</a>
-        <a href="${BUSINESS.waze}" target="_blank" rel="noopener">Abrir Waze</a>
-      </div>
-      <div>
-        <h3>Más Información</h3>
-        <a href="${BUSINESS.instagram}" target="_blank" rel="noopener">Instagram</a>
-        <a href="${BUSINESS.facebook}" target="_blank" rel="noopener">Facebook</a>
-        <span>Atencion personalizada en tienda y por WhatsApp para compra, stock y servicio tecnico Apple.</span>
-      </div>
-      <div class="footer-map">
-        <h3>Ubicación</h3>
-        <iframe src="${embed}" title="Ubicacion STTOR en mapa interactivo" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        <a href="servicio-tecnico.html">Servicio tecnico</a>
+      </nav>
+      <div class="footer-column footer-visit">
+        <h3>Visítanos</h3>
+        <p>${BUSINESS.address}</p>
+        <p>${BUSINESS.hours}</p>
+        <a href="${BUSINESS.googleMaps || BUSINESS.maps}" target="_blank" rel="noopener">Ver ubicación en el mapa <span aria-hidden="true">↗</span></a>
+        <a href="${whatsappUrl("Hola STTOR, deseo hacer una consulta.")}" target="_blank" rel="noopener">WhatsApp ${BUSINESS.phone}</a>
       </div>
     </div>
+    <div class="footer-bottom"><span>© ${new Date().getFullYear()} STTOR · Ica, Perú</span><span>Stock, precio final y opciones de entrega se confirman antes del pago.</span></div>
   `;
 }
 
