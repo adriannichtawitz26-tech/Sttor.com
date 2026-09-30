@@ -447,6 +447,10 @@ function whatsappUrl(message) {
   return `https://wa.me/${BUSINESS.whatsapp}?text=${encodeURIComponent(message)}`;
 }
 
+function currentPageUrl() {
+  return window.location.href.split("#")[0];
+}
+
 function renderNav(active) {
   const links = NAV.map(([label, href, key]) => (
     `<a class="nav-link ${active === key ? "active" : ""}" href="${href}" data-nav-key="${key}">${label}</a>`
@@ -473,6 +477,8 @@ function renderNav(active) {
 
   const panel = qs("[data-mobile-panel]");
   const toggle = qs("[data-mobile-toggle]");
+  toggle?.setAttribute("aria-controls", "mobile-menu");
+  panel?.setAttribute("id", "mobile-menu");
   const closeMenu = () => {
     panel?.classList.remove("open");
     toggle?.setAttribute("aria-expanded", "false");
@@ -483,16 +489,33 @@ function renderNav(active) {
     toggle?.setAttribute("aria-expanded", "true");
     document.body.classList.add("menu-open");
   };
-
-  toggle?.addEventListener("click", () => {
+  const toggleMenu = (event) => {
+    event?.preventDefault();
+    event?.stopPropagation();
     panel?.classList.contains("open") ? closeMenu() : openMenu();
-  });
-  qs("[data-mobile-close]")?.addEventListener("click", closeMenu);
-  document.addEventListener("click", (event) => {
-    if (!panel?.classList.contains("open")) return;
-    if (event.target.closest("[data-mobile-panel], [data-mobile-toggle]")) return;
-    closeMenu();
-  });
+  };
+
+  if (toggle) {
+    toggle.onclick = toggleMenu;
+    toggle.ontouchend = toggleMenu;
+  }
+  const closeButton = qs("[data-mobile-close]");
+  if (closeButton) {
+    closeButton.onclick = closeMenu;
+    closeButton.ontouchend = (event) => {
+      event.preventDefault();
+      closeMenu();
+    };
+  }
+  if (!document.documentElement.dataset.mobileMenuGuard) {
+    document.documentElement.dataset.mobileMenuGuard = "true";
+    document.addEventListener("click", (event) => {
+      const currentPanel = qs("[data-mobile-panel]");
+      if (!currentPanel?.classList.contains("open")) return;
+      if (event.target.closest("[data-mobile-panel], [data-mobile-toggle]")) return;
+      closeMenu();
+    });
+  }
 
   qsa("a[href$='.html']").forEach((link) => {
     link.addEventListener("click", closeMenu);
@@ -609,7 +632,34 @@ function renderMegaMenuContent(key) {
   `;
 }
 
+// Re-escribe og:url / og:image / twitter:url / twitter:image para que apunten
+// al dominio actual donde está desplegada la web. Sin esto, si la web vive en
+// netlify.app pero los meta tags dicen sttor.pe, WhatsApp no puede generar la
+// preview card con imagen al recibir el link del primer producto.
+function syncOpenGraphToCurrentOrigin() {
+  const here = window.location.origin;
+  const path = window.location.pathname;
+  const absolute = (rel) => {
+    if (!rel) return "";
+    if (/^https?:\/\//i.test(rel)) return rel;
+    if (rel.startsWith("/")) return here + rel;
+    return here + "/" + rel.replace(/^\.\//, "");
+  };
+  const setMeta = (selector, value) => {
+    if (!value) return;
+    const el = document.head.querySelector(selector);
+    if (el) el.setAttribute("content", value);
+  };
+  setMeta('meta[property="og:url"]', here + path);
+  setMeta('meta[name="twitter:url"]', here + path);
+  const ogImage = document.head.querySelector('meta[property="og:image"]')?.getAttribute("content");
+  const twImage = document.head.querySelector('meta[name="twitter:image"]')?.getAttribute("content");
+  setMeta('meta[property="og:image"]', absolute(ogImage));
+  setMeta('meta[name="twitter:image"]', absolute(twImage));
+}
+
 function boot() {
+  syncOpenGraphToCurrentOrigin();
   const page = document.body.dataset.page || "home";
   if (page === "admin") {
     return;
@@ -633,6 +683,7 @@ function boot() {
   initCarousels();
   initCommerce();
   initGlobalSearch();
+  initCompare();
 }
 
 function renderGlobalSearch() {
@@ -1021,18 +1072,46 @@ function isLocalMediaRef(value) {
   return String(value || "").startsWith("idb:");
 }
 
+function isPublishedMediaPath(value) {
+  return /^(assets\/media\/|media\/)/i.test(String(value || ""));
+}
+
+function resolveMediaSrc(src) {
+  if (!src) return "";
+  if (isLocalMediaRef(src)) return src;
+  if (isPublishedMediaPath(src)) return src;
+  return src;
+}
+
 function renderLocalAwareImage(src, alt = "", className = "") {
   const eager = /\b(page-logo|brand-mark|footer-logo|hero-logo)\b/.test(className);
   const attrs = eager
     ? `loading="eager" decoding="sync" fetchpriority="high"`
     : `loading="lazy" decoding="async"`;
-  return isLocalMediaRef(src)
-    ? `<img class="${className}" data-local-media-src="${src}" alt="${alt}" ${attrs}>`
-    : `<img class="${className}" src="${src}" alt="${alt}" ${attrs}>`;
+  if (isLocalMediaRef(src)) {
+    return `<img class="${className}" data-local-media-src="${src}" alt="${alt}" ${attrs}>`;
+  }
+  if (isPublishedMediaPath(src)) {
+    return `<img class="${className}" data-published-media-src="${src}" alt="${alt}" ${attrs}>`;
+  }
+  return `<img class="${className}" src="${src}" alt="${alt}" ${attrs}>`;
 }
 
 async function setImageSource(img, src) {
   if (!img || !src) return;
+  const srcStr = String(src || "");
+  if (srcStr.startsWith("media/") || srcStr.startsWith("assets/media/")) {
+    try {
+      const response = await fetch(new URL(srcStr.replace(/^\/+/, ""), document.baseURI));
+      if (!response.ok) return;
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      if (img.src !== url) img.src = url;
+      return;
+    } catch {
+      return;
+    }
+  }
   if (isLocalMediaRef(src)) {
     const url = await getLocalMediaUrl(src);
     if (url && img.src !== url) img.src = url;
@@ -1056,7 +1135,20 @@ function openLocalMediaDb() {
 }
 
 async function getLocalMediaUrl(ref) {
-  const id = String(ref || "").replace(/^idb:/, "");
+  const refStr = String(ref || "");
+  // Si es una ruta de archivo media/ o assets/media/ (del deploy), usar fetch
+  if (refStr.startsWith("media/") || refStr.startsWith("assets/media/")) {
+    try {
+      const response = await fetch(new URL(refStr.replace(/^\/+/, ""), document.baseURI));
+      if (!response.ok) return "";
+      const blob = await response.blob();
+      return URL.createObjectURL(blob);
+    } catch {
+      return "";
+    }
+  }
+  // Si es referencia local (idb:), usar IndexedDB
+  const id = refStr.replace(/^idb:/, "");
   const db = await openLocalMediaDb();
   const record = await new Promise((resolve, reject) => {
     const tx = db.transaction(LOCAL_MEDIA_STORE, "readonly");
@@ -1089,6 +1181,10 @@ function hydrateLocalDecorMedia() {
 function hydrateLocalMediaElements() {
   qsa("[data-local-media-src]").forEach(async (node) => {
     const url = await getLocalMediaUrl(node.dataset.localMediaSrc);
+    if (url) node.src = url;
+  });
+  qsa("[data-published-media-src]").forEach(async (node) => {
+    const url = await getLocalMediaUrl(node.dataset.publishedMediaSrc);
     if (url) node.src = url;
   });
 }
@@ -1215,7 +1311,7 @@ function renderProductCarouselCard(item) {
         <p>${item.desc}</p>
         <div class="apple-product-actions">
           <button class="btn primary" type="button" data-product-options="${item.id}">Mas informacion</button>
-          <a href="${whatsappUrl(`Hola STTOR, deseo comprar ${item.name}.`)}" target="_blank" rel="noopener">Comprar ›</a>
+          <button class="link-button" type="button" data-buy-now="${item.id}">Comprar ›</button>
         </div>
       </div>
     </article>
@@ -1229,12 +1325,17 @@ function renderProductCard(item, extraClass = "") {
     : `<div class="product-visual ${visual}" style="--p1:${item.p1};--p2:${item.p2}" aria-hidden="true"></div>`;
   const rating = productRating(item.name);
   const beforePrice = item.beforePrice || previousPrice(item.price);
+  const isComparing = typeof window !== "undefined" && window.__comparingProducts?.has(item.id);
+  const openBoxNote = item.openBoxPrice ? `<span class="open-box-note">Open Box: ${formatPrice(item.openBoxPrice)}</span>` : "";
   return `
     <article class="product-card reveal ${extraClass}" data-product-card="${item.id}">
+      <button class="compare-toggle ${isComparing ? "active" : ""}" type="button" data-compare-toggle="${item.id}" aria-label="Agregar ${item.name} a comparador" title="Comparar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      </button>
       <div class="product-media">
         ${media}
       </div>
-      <span class="badge">${item.badge}</span>
+      <span class="badge">${item.badge || "Disponible"}</span>
       <h3>${item.name}</h3>
       <div class="rating-row" aria-label="Calificacion ${rating.score} de 5">
         <span class="stars" aria-hidden="true">${renderStars(rating.score)}</span>
@@ -1249,9 +1350,10 @@ function renderProductCard(item, extraClass = "") {
         </span>
         <span class="mini-meta">${item.color}</span>
       </div>
+      ${openBoxNote}
       <div class="cta-row">
         <button class="btn primary" type="button" data-product-options="${item.id}">Ver producto</button>
-        <a class="btn" target="_blank" rel="noopener" href="${whatsappUrl(`Hola STTOR, deseo consultar stock de ${item.name}.`)}">Stock</a>
+        <button class="btn whats-btn" type="button" data-buy-now="${item.id}">Comprar</button>
       </div>
     </article>
   `;
@@ -1537,9 +1639,13 @@ function renderCompareSummary(products) {
 
 function renderCompareImage(src, alt = "") {
   const style = "width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;object-position:center center;display:block;padding:0;border-radius:0;";
-  return isLocalMediaRef(src)
-    ? `<img class="compare-image" data-local-media-src="${src}" alt="${alt}" loading="lazy" style="${style}">`
-    : `<img class="compare-image" src="${src}" alt="${alt}" loading="lazy" style="${style}">`;
+  if (isLocalMediaRef(src)) {
+    return `<img class="compare-image" data-local-media-src="${src}" alt="${alt}" loading="lazy" style="${style}">`;
+  }
+  if (isPublishedMediaPath(src)) {
+    return `<img class="compare-image" data-published-media-src="${src}" alt="${alt}" loading="lazy" style="${style}">`;
+  }
+  return `<img class="compare-image" src="${src}" alt="${alt}" loading="lazy" style="${style}">`;
 }
 
 function compareRows(products) {
@@ -2217,7 +2323,7 @@ function renderCommerceShell() {
           <span>Total</span>
           <strong data-cart-total>S/ 0</strong>
         </div>
-        <button class="btn primary cart-checkout" type="button" data-cart-checkout>Enviar proforma por WhatsApp</button>
+        <button class="btn primary cart-checkout" type="button" data-cart-checkout>Comprar por WhatsApp</button>
       </div>
     </aside>
   `);
@@ -2237,6 +2343,13 @@ function handleCommerceClick(event) {
     return;
   }
 
+  const buyNowButton = event.target.closest("[data-buy-now]");
+  if (buyNowButton) {
+    event.preventDefault();
+    buyProductNow(buyNowButton.dataset.buyNow);
+    return;
+  }
+
   const productCard = event.target.closest("[data-product-card]");
   if (productCard && !event.target.closest("a, button, input, select, textarea")) {
     openProductModal(productCard.dataset.productCard);
@@ -2249,7 +2362,13 @@ function handleCommerceClick(event) {
   if (event.target.matches("[data-cart-drawer]")) closeCart();
 
   const addButton = event.target.closest("[data-add-to-cart]");
-  if (addButton) addCurrentProductToCart(addButton.dataset.addToCart);
+  if (addButton?.hasAttribute("data-open-checkout")) {
+    const product = findProductById(addButton.dataset.addToCart);
+    const dialog = qs("[data-product-dialog]");
+    const selected = qs("[name='product-condition']:checked", dialog);
+    const qty = Math.max(1, Number(qs("[data-product-qty]", dialog)?.value || 1));
+    if (product && selected) quickBuy(product, selected.value, Number(selected.dataset.price), qty);
+  } else if (addButton) addCurrentProductToCart(addButton.dataset.addToCart);
 
   const removeButton = event.target.closest("[data-remove-cart]");
   if (removeButton) removeCartItem(Number(removeButton.dataset.removeCart));
@@ -2327,6 +2446,7 @@ function openProductModal(id) {
         </div>
         <div class="modal-total"><span>Total</span><strong data-modal-total>${formatPrice(product.price)}</strong></div>
         <button class="btn primary" type="button" data-add-to-cart="${product.id}">Agregar al carrito</button>
+        <button class="btn checkout-now" type="button" data-add-to-cart="${product.id}" data-open-checkout>Comprar ahora</button>
       </div>
     </div>
   `;
@@ -2376,6 +2496,28 @@ function addCurrentProductToCart(id) {
   updateCartUI();
   closeProductModal();
   openCart();
+}
+
+function buyProductNow(id) {
+  const product = findProductById(id);
+  if (!product) return;
+  quickBuy(product, "Sellado", Number(product.price), 1);
+}
+
+function quickBuy(product, condition, price, qty) {
+  const origin = currentPageUrl();
+  const category = product.category || "";
+  const productUrl = category ? `${origin.replace(/\/[^/]*$/, "")}/${category}.html#${product.id}` : origin;
+  const message = [
+    `Hola STTOR 👋, quiero comprar ${qty > 1 ? `${qty} × ` : ""}*${product.name}*.`,
+    `Estado: ${condition || "Sellado"}`,
+    product.color ? `Color: ${product.color}` : null,
+    `Precio referencial: ${formatPrice(price * qty)}`,
+    productUrl ? `Ficha: ${productUrl}` : null,
+    "Por favor confírmame stock y cómo finalizar la compra."
+  ].filter(Boolean).join("\n");
+  closeProductModal();
+  window.open(whatsappUrl(message), "_blank", "noopener");
 }
 
 function loadCart() {
@@ -2465,13 +2607,35 @@ function closeCart() {
 
 function checkoutCart() {
   if (!CART.length) return;
-  const lines = CART.map((item, index) => `${index + 1}. ${item.name} - ${item.condition} - Cantidad ${item.qty} - ${formatPrice(item.price * item.qty)}`);
+  const origin = currentPageUrl();
+  const lines = CART.map((item, index) => {
+    const product = findProductById(item.productId);
+    const category = product?.category || item.category || "";
+    const productUrl = category && item.productId
+      ? `${origin.replace(/\/[^/]*$/, "")}/${category}.html#${item.productId}`
+      : origin;
+    const subtotal = formatPrice(item.price * item.qty);
+    const productLine = `*${item.qty}\u00d7 ${item.name}*`;
+    const detailLines = [
+      `   \u2022 Estado: ${item.condition || "Consultar"}`,
+      item.color ? `   \u2022 Color: ${item.color}` : null,
+      `   \u2022 Cantidad: ${item.qty}`,
+      `   \u2022 Precio: ${subtotal}`
+    ].filter(Boolean);
+    if (productUrl) detailLines.push(`   \u2022 Ficha: ${productUrl}`);
+    return [`${index + 1}. ${productLine}`, ...detailLines].join("\n");
+  });
   const message = [
-    "Hola STTOR, deseo comprar estos productos. Por favor enviame la proforma:",
+    "Hola STTOR \ud83d\udc4b, deseo comprar estos productos:",
+    "",
     ...lines,
-    `Total a pagar: ${formatPrice(cartTotal())}`,
-    "Datos de entrega/recojo: por confirmar."
-  ].join("\n");
+    "",
+    `*Total referencial:* ${formatPrice(cartTotal())}`,
+    "",
+    `\ud83d\udecd Lo vi en: ${origin}`,
+    "",
+    "Por favor conf\u00edrmame stock, costo de env\u00edo y pasos para finalizar la compra. \ud83d\ude4f"
+  ].filter(Boolean).join("\n");
   window.open(whatsappUrl(message), "_blank", "noopener");
 }
 
@@ -2528,6 +2692,74 @@ function renderFooter() {
       </div>
     </div>
   `;
+}
+
+function initCompare() {
+  window.__comparingProducts = new Set(JSON.parse(sessionStorage.getItem("sttor-compare") || "[]"));
+  if (qs("[data-compare-banner]")) return;
+  document.body.insertAdjacentHTML("beforeend", `
+    <div class="compare-banner" data-compare-banner hidden>
+      <span>Comparar: <strong data-compare-names></strong></span>
+      <a class="btn primary" data-compare-go>Comparar ahora</a>
+      <button class="compare-banner-close" type="button" data-compare-clear aria-label="Limpiar seleccion">×</button>
+    </div>
+  `);
+  document.addEventListener("click", (event) => {
+    const toggle = event.target.closest("[data-compare-toggle]");
+    if (toggle) {
+      const id = toggle.dataset.compareToggle;
+      if (window.__comparingProducts.has(id)) {
+        window.__comparingProducts.delete(id);
+        toggle.classList.remove("active");
+      } else {
+        if (window.__comparingProducts.size >= 2) {
+          const first = [...window.__comparingProducts][0];
+          window.__comparingProducts.delete(first);
+          qsa("[data-compare-toggle].active").forEach((btn) => {
+            if (!window.__comparingProducts.has(btn.dataset.compareToggle)) btn.classList.remove("active");
+          });
+        }
+        window.__comparingProducts.add(id);
+        toggle.classList.add("active");
+      }
+      sessionStorage.setItem("sttor-compare", JSON.stringify([...window.__comparingProducts]));
+      updateCompareBanner();
+    }
+    if (event.target.closest("[data-compare-clear]")) {
+      window.__comparingProducts.clear();
+      sessionStorage.removeItem("sttor-compare");
+      qsa("[data-compare-toggle].active").forEach((btn) => btn.classList.remove("active"));
+      updateCompareBanner();
+    }
+    if (event.target.closest("[data-compare-go]")) {
+      const ids = [...window.__comparingProducts];
+      const page = document.body.dataset.page;
+      if (ids.length === 2 && CATEGORY_META[page]) {
+        window.location.hash = "#comparar";
+        initProductComparator(page);
+      }
+    }
+  });
+  updateCompareBanner();
+}
+
+function updateCompareBanner() {
+  const banner = qs("[data-compare-banner]");
+  const namesEl = qs("[data-compare-names]");
+  if (!banner || !namesEl) return;
+  const ids = [...window.__comparingProducts];
+  if (ids.length !== 2) {
+    banner.hidden = true;
+    return;
+  }
+  const allItems = Object.values(PRODUCTS).flat();
+  const names = ids.map((id) => allItems.find((p) => p.id === id)?.name || "Producto").join(" y ");
+  namesEl.textContent = names;
+  banner.hidden = false;
+}
+
+function findAllProduct(id) {
+  return Object.values(PRODUCTS).flat().find((p) => p.id === id);
 }
 
 window.STTOR_DEFAULTS = {

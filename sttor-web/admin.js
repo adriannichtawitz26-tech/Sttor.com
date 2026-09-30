@@ -70,6 +70,63 @@ function loadAdminState() {
   Admin.state.testimonials = Admin.state.testimonials.map((item, index) => normalizeTestimonial(item, index));
   Admin.state.decorations = Admin.state.decorations.map((item) => normalizeDecoration(item));
   Admin.state.homeSlides = (Admin.state.homeSlides || []).map((item) => normalizeHomeSlide(item));
+  restoreMissingPublishedMedia(defaults);
+}
+
+function restoreMissingPublishedMedia(defaults) {
+  Object.keys(Admin.state.products || {}).forEach((category) => {
+    const fallbackItems = defaults.products?.[category] || [];
+    (Admin.state.products[category] || []).forEach((item, index) => {
+      const fallback = fallbackItems.find((entry) => entry.id && entry.id === item.id)
+        || fallbackItems.find((entry) => entry.name === item.name)
+        || fallbackItems[index];
+      if (fallback?.image && !item.image) item.image = fallback.image;
+    });
+  });
+
+  (Admin.state.services || []).forEach((item, index) => {
+    const fallback = (defaults.services || []).find((entry) => entry.title === item.title) || defaults.services?.[index];
+    if (fallback?.image && !item.image) item.image = fallback.image;
+    if (Array.isArray(fallback?.gallery) && fallback.gallery.length && !item.gallery?.length) {
+      item.gallery = fallback.gallery;
+    }
+  });
+
+  (Admin.state.decorations || []).forEach((item) => {
+    const fallback = (defaults.decorations || []).find((entry) => entry.slot === item.slot);
+    if (fallback?.image && !item.image) {
+      item.image = fallback.image;
+      item.mediaType = fallback.mediaType || inferMediaType(fallback.image);
+    }
+  });
+
+  (Admin.state.homeSlides || []).forEach((item, index) => {
+    const fallback = (defaults.homeSlides || []).find((entry) => entry.title === item.title || entry.productName === item.productName)
+      || defaults.homeSlides?.[index];
+    if (fallback?.image && !item.image) item.image = fallback.image;
+  });
+
+  Object.keys(defaults.logos || {}).forEach((key) => {
+    if (defaults.logos[key] && !Admin.state.logos?.[key]) {
+      Admin.state.logos ||= {};
+      Admin.state.logos[key] = defaults.logos[key];
+    }
+  });
+}
+
+async function loadPublishedContentForAdmin() {
+  if (typeof hydratePublishedContent === "function") {
+    await hydratePublishedContent();
+    return;
+  }
+  if (typeof applyManagedContent === "function") {
+    try {
+      const response = await fetch("site-data.json", { cache: "no-store" });
+      if (response.ok) applyManagedContent(await response.json());
+    } catch (error) {
+      console.warn("No se pudo cargar site-data.json para el admin", error);
+    }
+  }
 }
 
 function normalizeHomeSlide(item = {}) {
@@ -199,53 +256,160 @@ async function saveAdminState() {
 
 async function exportPublishData() {
   try {
-    setStatus("Preparando archivo de publicacion...", true);
+    setStatus("Preparando publicacion...", true);
+    if (typeof JSZip === "undefined") {
+      setStatus("No se pudo cargar el exportador ZIP. Recarga la pagina e intenta de nuevo.", false);
+      return;
+    }
     await saveAdminState();
-    const exportState = await inlineLocalMediaRefs(JSON.parse(JSON.stringify(Admin.state)));
+    setStatus("Agregando archivos de la web...", true);
+    const exportState = JSON.parse(JSON.stringify(Admin.state));
     delete exportState.media;
-    const blob = new Blob([JSON.stringify(exportState, null, 2)], { type: "application/json" });
+
+    const idbRefs = collectAllIdbRefs(exportState);
+    const allBlobs = await loadAllIdbBlobs(idbRefs);
+
+    const zip = new JSZip();
+    const mediaFolder = zip.folder("assets/media");
+
+    const converted = convertIdbRefsToMediaPaths(exportState, allBlobs, (id, blob, name) => {
+      if (!blob || !mediaFolder) throw new Error(`No se encontró el archivo local ${name || id}`);
+      const extByMime = {
+        "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
+        "image/svg+xml": "svg", "image/avif": "avif", "image/bmp": "bmp", "image/tiff": "tiff",
+        "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/ogg": "ogv"
+      };
+      const nameExt = String(name || "").match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+      const ext = extByMime[String(blob.type || "").toLowerCase()] || (nameExt && /^[a-z0-9]{2,5}$/.test(nameExt) ? nameExt : "bin");
+      const filename = `media-${id}.${ext}`;
+      mediaFolder.file(filename, blob);
+      return `assets/media/${filename}`;
+    });
+
+    await addStaticSiteFilesToZip(zip);
+    await addReferencedAssetsToZip(zip, converted);
+    zip.file("site-data.json", JSON.stringify(converted, null, 2));
+
+    const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+    if (!blob || blob.size < 1024 * 100) {
+      setStatus("El archivo generado salio demasiado pequeno. Recarga el admin y exporta otra vez.", false);
+      return;
+    }
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "site-data.json";
+    link.download = "sttor-publicacion.zip";
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    setStatus("Archivo site-data.json exportado. Sube ese archivo junto a la web.", true);
+    setStatus("Listo! Descarga sttor-publicacion.zip y subelo completo a Netlify.", true);
   } catch (error) {
     console.error(error);
-    setStatus("No se pudo exportar. Revisa que las imagenes locales sigan disponibles en este navegador.", false);
+    setStatus("Error al exportar. Recarga la pagina e intenta de nuevo.", false);
   }
 }
 
-async function inlineLocalMediaRefs(value) {
+async function addStaticSiteFilesToZip(zip) {
+  const files = [
+    "index.html",
+    "iphone.html",
+    "mac.html",
+    "ipad.html",
+    "airpods.html",
+    "watch.html",
+    "accesorios.html",
+    "servicio-tecnico.html",
+    "garantia.html",
+    "preguntas-frecuentes.html",
+    "sobre-sttor.html",
+    "styles.css",
+    "service-fixes.css",
+    "app.js",
+    "admin.html",
+    "admin.css",
+    "admin.js",
+    "assets/vendor/jszip.min.js",
+    "robots.txt",
+    "sitemap.xml",
+    "netlify.toml",
+    "assets/isotipo-logo-principal.jpeg",
+    "assets/isotipo-logo-principal.png",
+    "assets/logo-principal-sttor.png",
+    "assets/logo-servicio-tecnico-transparent.png",
+    "assets/logo-servicio-tecnico.png",
+    "assets/logo-sttor-dark.png",
+    "assets/logo-sttor-light.png",
+    "assets/logo-sttor-transparent.png"
+  ];
+  for (const file of files) await addFetchedFileToZip(zip, file);
+}
+
+async function addReferencedAssetsToZip(zip, data) {
+  const paths = collectPublishedAssetPaths(data);
+  for (const path of paths) await addFetchedFileToZip(zip, path);
+}
+
+function collectPublishedAssetPaths(value, paths = new Set()) {
   if (typeof value === "string") {
-    if (!isLocalMediaRef(value)) return value;
-    return getLocalMediaDataUrl(value);
+    const clean = value.split("#")[0].split("?")[0].replace(/^\/+/, "");
+    if (/^assets\/.+/i.test(clean)) paths.add(clean);
+  } else if (Array.isArray(value)) {
+    value.forEach((item) => collectPublishedAssetPaths(item, paths));
+  } else if (value && typeof value === "object") {
+    Object.values(value).forEach((item) => collectPublishedAssetPaths(item, paths));
   }
-  if (Array.isArray(value)) {
-    return Promise.all(value.map((item) => inlineLocalMediaRefs(item)));
-  }
-  if (value && typeof value === "object") {
-    const entries = await Promise.all(Object.entries(value).map(async ([key, entry]) => [key, await inlineLocalMediaRefs(entry)]));
-    return Object.fromEntries(entries);
-  }
-  return value;
+  return paths;
 }
 
-async function getLocalMediaDataUrl(ref) {
-  const id = String(ref || "").replace(/^idb:/, "");
+async function addFetchedFileToZip(zip, path) {
+  try {
+    const response = await fetch(new URL(String(path).replace(/^\/+/, ""), document.baseURI), { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    zip.file(path, await response.blob());
+  } catch (error) {
+    throw new Error(`No se pudo agregar ${path} al ZIP: ${error.message}`);
+  }
+}
+
+function collectAllIdbRefs(obj, refs = new Set()) {
+  if (typeof obj === "string" && isLocalMediaRef(obj)) refs.add(obj);
+  else if (Array.isArray(obj)) obj.forEach((item) => collectAllIdbRefs(item, refs));
+  else if (obj && typeof obj === "object") Object.values(obj).forEach((val) => collectAllIdbRefs(val, refs));
+  return refs;
+}
+
+async function loadAllIdbBlobs(idbRefs) {
   const db = await openLocalMediaDb();
-  const record = await new Promise((resolve, reject) => {
-    const tx = db.transaction(ADMIN_LOCAL_MEDIA_STORE, "readonly");
-    const request = tx.objectStore(ADMIN_LOCAL_MEDIA_STORE).get(id);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+  const result = {};
+  for (const ref of idbRefs) {
+    const id = String(ref).replace(/^idb:/, "");
+    const record = await new Promise((resolve) => {
+      const tx = db.transaction(ADMIN_LOCAL_MEDIA_STORE, "readonly");
+      tx.objectStore(ADMIN_LOCAL_MEDIA_STORE).get(id).onsuccess = () => resolve(tx.objectStore(ADMIN_LOCAL_MEDIA_STORE).result);
+    });
+    if (record?.blob) result[id] = { blob: record.blob, type: record.type, name: record.name };
+  }
   db.close();
-  if (!record?.blob) return "";
-  return readFileAsDataUrl(record.blob);
+  return result;
+}
+
+function convertIdbRefsToMediaPaths(obj, blobs, onBlobFound) {
+  if (typeof obj === "string") {
+    if (!isLocalMediaRef(obj)) return obj;
+    const id = String(obj).replace(/^idb:/, "");
+    const info = blobs[id];
+    return onBlobFound(id, info?.blob, info?.name) || obj;
+  }
+  if (Array.isArray(obj)) return obj.map((item) => convertIdbRefsToMediaPaths(item, blobs, onBlobFound));
+  if (obj && typeof obj === "object") {
+    const result = {};
+    for (const [key, val] of Object.entries(obj)) {
+      result[key] = convertIdbRefsToMediaPaths(val, blobs, onBlobFound);
+    }
+    return result;
+  }
+  return obj;
 }
 
 function compactMediaLibrary() {
@@ -2016,11 +2180,12 @@ function renderAdminAccess() {
   });
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   if (!hasAdminAccess()) {
     renderAdminAccess();
     return;
   }
+  await loadPublishedContentForAdmin();
   loadAdminState();
   renderAdmin();
   document.querySelectorAll("[data-admin-tab]").forEach((btn) => btn.addEventListener("click", () => switchTab(btn.dataset.adminTab)));
