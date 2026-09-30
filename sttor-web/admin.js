@@ -127,6 +127,12 @@ function restoreMissingPublishedMedia(defaults) {
 async function loadPublishedContentForAdmin() {
   if (typeof hydratePublishedContent === "function") {
     await hydratePublishedContent();
+    try {
+      const response = await fetch("/api/content", { cache: "no-store" });
+      if (response.ok) Admin.remoteState = await response.json();
+    } catch (error) {
+      console.warn("No se pudo comparar el borrador local con la publicacion actual", error);
+    }
     return;
   }
   if (typeof applyManagedContent === "function") {
