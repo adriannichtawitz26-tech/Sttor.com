@@ -255,7 +255,8 @@ async function saveAdminState() {
     try {
       compactMediaLibrary();
       localStorage.setItem(window.STTOR_DEFAULTS.storageKey, JSON.stringify(Admin.state));
-      setStatus("Guardado en este navegador; no se pudo publicar en la web. Revisa la conexion.", false);
+      const detail = error instanceof Error && error.message ? ` ${error.message}` : "";
+      setStatus(`Guardado en este navegador; no se pudo publicar en la web.${detail}`, false);
     } catch (retryError) {
       console.error(retryError);
       setStatus("No se pudo guardar. Se intentara liberar espacio local y guardar de nuevo.", false);
@@ -443,6 +444,7 @@ function collectAllIdbRefs(obj, refs = new Set()) {
 }
 
 async function loadAllIdbBlobs(idbRefs) {
+  if (!idbRefs?.size) return {};
   const db = await openLocalMediaDb();
   const result = {};
   for (const ref of idbRefs) {
