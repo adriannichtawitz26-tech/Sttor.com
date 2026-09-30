@@ -272,8 +272,30 @@ async function saveAdminState() {
 
 async function publishAdminState(revision) {
   const publishState = JSON.parse(JSON.stringify(Admin.state));
-  const refs = collectAllIdbRefs(publishState);
+  let refs = collectAllIdbRefs(publishState);
   const blobs = await loadAllIdbBlobs(refs);
+
+  const missingRefs = new Set([...refs].filter((ref) => {
+    const id = String(ref).replace(/^idb:/, "");
+    return !blobs[id];
+  }));
+  const contentState = { ...publishState, media: [] };
+  const missingContentRefs = [...collectAllIdbRefs(contentState)].filter((ref) => missingRefs.has(ref));
+  if (missingContentRefs.length) {
+    throw new Error("Una foto asignada a un producto o sección ya no está guardada en este navegador. Vuelve a cargarla en el administrador.");
+  }
+
+  let removedMissingMedia = 0;
+  if (missingRefs.size && Array.isArray(publishState.media)) {
+    publishState.media = publishState.media.filter((item) => {
+      const itemRefs = collectAllIdbRefs(item);
+      const hasMissingFile = [...itemRefs].some((ref) => missingRefs.has(ref));
+      if (hasMissingFile) removedMissingMedia += 1;
+      return !hasMissingFile;
+    });
+  }
+
+  refs = collectAllIdbRefs(publishState);
   const converted = convertIdbRefsToMediaPaths(publishState, blobs, (id, blob) => {
     if (!blob) throw new Error(`No se encontró el archivo local ${id}`);
     return `/api/media?key=${encodeURIComponent(id)}`;
@@ -308,7 +330,10 @@ async function publishAdminState(revision) {
     Admin.state = converted;
     localStorage.setItem(window.STTOR_DEFAULTS.storageKey, JSON.stringify(converted));
     Admin.dirty = false;
-    setStatus("Publicado en la web", true);
+    const cleanupMessage = removedMissingMedia
+      ? ` Se omitieron ${removedMissingMedia} foto(s) que faltaban en la biblioteca; vuelve a cargarlas si aún las necesitas.`
+      : "";
+    setStatus(`Publicado en la web.${cleanupMessage}`, true);
   } else {
     setStatus("Guardando los últimos cambios…", false);
   }
