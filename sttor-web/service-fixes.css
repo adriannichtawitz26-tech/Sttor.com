@@ -9057,3 +9057,102 @@ body[data-page="servicio"] .service-card .service-image {
   .home-product-grid > .product-card { padding: 10px !important; }
   .catalog-carousel .apple-product-media { height: 210px !important; min-height: 210px !important; max-height: 210px !important; }
 }
+
+/* Keep product artwork fully visible and bring the home showcases back to scale. */
+.product-card .product-media,
+.apple-product-media,
+.compare-product-media {
+  display: grid !important;
+  place-items: center !important;
+  overflow: hidden !important;
+}
+
+.product-card .product-media .product-image,
+.product-card .product-media img,
+.apple-product-media .product-image,
+.apple-product-media img,
+.compare-product-media .compare-image,
+.compare-product-media img {
+  position: static !important;
+  inset: auto !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  transform: none !important;
+}
+
+body[data-page="home"] .home-feature-section .carousel-track {
+  grid-auto-columns: clamp(290px, 24vw, 350px) !important;
+  gap: 18px !important;
+}
+
+body[data-page="home"] .home-feature-section .product-card .product-media {
+  height: 190px !important;
+  min-height: 190px !important;
+  padding: 12px !important;
+}
+
+body[data-page="home"] .home-catalog-section.wide-band .catalog-carousel .carousel-track {
+  grid-auto-columns: clamp(230px, 20vw, 300px) !important;
+  gap: 18px !important;
+}
+
+body[data-page="home"] .home-catalog-section.wide-band .apple-product-card {
+  grid-template-rows: 185px minmax(0, 1fr) !important;
+  min-height: 0 !important;
+}
+
+body[data-page="home"] .home-catalog-section.wide-band .apple-product-media {
+  height: 185px !important;
+  min-height: 185px !important;
+  max-height: 185px !important;
+  padding: 12px !important;
+}
+
+body[data-page="home"] .home-catalog-section.wide-band .apple-product-copy {
+  padding: 18px 16px 16px !important;
+}
+
+@media (max-width: 760px) {
+  .product-grid .product-card .product-media,
+  .home-product-grid .product-card .product-media {
+    height: 138px !important;
+    min-height: 138px !important;
+    padding: 8px !important;
+  }
+
+  body[data-page="home"] .home-feature-section .carousel-track {
+    grid-auto-columns: min(84vw, 390px) !important;
+    gap: 12px !important;
+  }
+
+  body[data-page="home"] .home-feature-section .product-card .product-media {
+    height: 205px !important;
+    min-height: 205px !important;
+    padding: 12px !important;
+  }
+
+  body[data-page="home"] .home-catalog-section.wide-band .catalog-carousel .carousel-track {
+    grid-auto-columns: min(68vw, 280px) !important;
+    gap: 12px !important;
+  }
+
+  body[data-page="home"] .home-catalog-section.wide-band .apple-product-card {
+    grid-template-rows: 155px minmax(0, 1fr) !important;
+  }
+
+  body[data-page="home"] .home-catalog-section.wide-band .apple-product-media {
+    height: 155px !important;
+    min-height: 155px !important;
+    max-height: 155px !important;
+    padding: 8px !important;
+  }
+
+  body[data-page="home"] .home-catalog-section.wide-band .apple-product-copy {
+    padding: 16px 14px 14px !important;
+  }
+}
