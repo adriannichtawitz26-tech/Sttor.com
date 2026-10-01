@@ -38,7 +38,6 @@ const LOGO_SIZES = {
 
 const NAV = [
   ["Inicio", "index.html", "home"],
-  ["Experiencias", "experiencias.html", "experiencias"],
   ["iPhone", "iphone.html", "iphone"],
   ["Mac", "mac.html", "mac"],
   ["iPad", "ipad.html", "ipad"],
@@ -174,13 +173,6 @@ function service(title, copy, icon, price, image = "", active = true) {
     active
   };
 }
-
-const BENEFITS = [
-  ["Stock consultable", "Cotiza por WhatsApp y confirma disponibilidad antes de visitar tienda.", "ST"],
-  ["Atencion especializada", "Equipo enfocado en Apple, con asesoramiento claro antes de comprar.", "SP"],
-  ["Compra segura", "Datos comerciales visibles, ubicacion fisica en Ica y seguimiento directo.", "OK"],
-  ["Servicio tecnico", "Diagnostico, reparacion y soluciones para iPhone, Mac, iPad y Watch.", "FX"]
-];
 
 const TESTIMONIALS = [
   testimonial("Me ayudaron a elegir un iPhone sin presion. Todo claro y rapido.", "Mariana G.", 4.8),
@@ -727,12 +719,7 @@ function boot() {
   hydrateLocalDecorMedia();
   hydrateLocalMediaElements();
   initReveal();
-  initHomeParallax();
   initScrollDecorations();
-  if (page === "experiencias") {
-    renderExperiences();
-    initExperienceParallax();
-  }
   initHomeHero();
   initCarousels();
   initCommerce();
@@ -778,6 +765,17 @@ function renderHome() {
   layoutShell(`
     ${renderHomeStoreHero()}
 
+    <section class="section home-feature-section">
+      <div class="section-head reveal">
+        <div>
+          <h2 class="section-title">Productos destacados.</h2>
+          <p class="section-copy">Una selección de equipos y accesorios de STTOR para descubrir y consultar.</p>
+        </div>
+        <a class="btn" href="iphone.html">Explorar catalogo</a>
+      </div>
+      ${renderCarousel(featured, "Productos destacados", true)}
+    </section>
+
     <section class="section">
       <div class="section-head reveal">
         <div>
@@ -816,31 +814,6 @@ function renderHome() {
     </section>
 
     ${renderDecoration("home-after-accessories")}
-
-    <section class="section home-feature-section">
-      <div class="section-head reveal">
-        <div>
-          <h2 class="section-title">Productos destacados.</h2>
-          <p class="section-copy">Modelos seleccionados para comprar con asesoria directa y stock consultable por WhatsApp.</p>
-        </div>
-        <a class="btn" href="iphone.html">Explorar catalogo</a>
-      </div>
-      ${renderCarousel(featured, "Productos destacados", true)}
-    </section>
-
-    <section class="section home-confidence">
-      <div class="home-confidence-panel reveal">
-        <div>
-          <span class="eyebrow">Compra segura</span>
-          <h2 class="section-title">Atencion clara antes y despues de comprar.</h2>
-          <p class="section-copy">Productos Apple, accesorios y soporte tecnico en un solo lugar, con contacto directo y tienda fisica en Ica.</p>
-        </div>
-        <div class="benefit-grid compact-benefits">${BENEFITS.slice(0, 3).map(([title, copy, icon]) => `
-          <article class="benefit-card"><div class="icon">${icon}</div><h3>${title}</h3><p>${copy}</p></article>
-        `).join("")}</div>
-      </div>
-    </section>
-
     <section class="section home-service-editorial">
       <div class="home-service-panel reveal">
         <div>
@@ -895,195 +868,9 @@ function renderHome() {
       </div>
     </section>
 
-    ${renderHomeHelpSection()}
     ${renderHomeFaqSection()}
     ${renderLocationSection()}
   `);
-}
-
-function renderExperiences() {
-  const scenes = [
-    {
-      id: "iphone",
-      number: "01",
-      category: "iPhone 18 Pro",
-      title: "Un mundo en cada toma.",
-      copy: "Diseñado para crear, descubrir y guardar tus momentos favoritos. Conoce el iPhone 18 Pro en movimiento.",
-      video: "assets/experiencias/iphone-18-pro.mp4",
-      tone: "iphone",
-      link: "iphone.html",
-      message: "Hola STTOR, quiero consultar por el iPhone 18 Pro y su disponibilidad."
-    },
-    {
-      id: "macbook",
-      number: "02",
-      category: "MacBook Neo",
-      title: "Ideas que toman forma.",
-      copy: "Una Mac para llevar tus proyectos a donde vayas. Mírala desde todos los ángulos y consulta las opciones disponibles.",
-      video: "assets/experiencias/macbook-neo.webm",
-      tone: "macbook",
-      link: "mac.html",
-      message: "Hola STTOR, quiero consultar por la MacBook Neo y su disponibilidad."
-    },
-    {
-      id: "airpods",
-      number: "03",
-      category: "AirPods Max 2",
-      title: "Entra en tu propio espacio.",
-      copy: "Una experiencia de audio pensada para acompañar tus momentos. Descubre su diseño y pregúntanos por disponibilidad.",
-      video: "assets/experiencias/airpods-max-2.mp4",
-      tone: "airpods",
-      link: "airpods.html",
-      message: "Hola STTOR, quiero consultar por los AirPods Max 2 y su disponibilidad."
-    }
-  ];
-
-  layoutShell(`
-    <div class="experiences-page">
-      <section class="exp-intro">
-        <span class="exp-intro-mark">STTOR · EXPERIENCIAS</span>
-        <h1>Tecnología que<br><span>se siente.</span></h1>
-        <p>Una pausa para descubrir de cerca los productos que te inspiran.</p>
-        <a class="exp-scroll-cue" href="#exp-iphone"><span aria-hidden="true">↓</span> Desliza para explorar</a>
-      </section>
-      ${scenes.map((scene) => `
-        <section class="exp-scene exp-scene--${scene.tone}" id="exp-${scene.id}" data-exp-scene aria-label="${scene.category}">
-          <div class="exp-scene-stage">
-            <div class="exp-video-wrap" aria-hidden="true">
-              <video class="exp-video" data-experience-video data-src="${scene.video}" muted playsinline preload="none" tabindex="-1" aria-hidden="true"></video>
-            </div>
-            <div class="exp-scene-shade"></div>
-            <div class="exp-scene-copy">
-              <span class="exp-scene-number">${scene.number} / 03&nbsp;&nbsp; · &nbsp;&nbsp;${scene.category}</span>
-              <h2>${scene.title}</h2>
-              <p>${scene.copy}</p>
-              <div class="exp-scene-actions">
-                <a class="exp-button exp-button--light" href="${whatsappUrl(scene.message)}" target="_blank" rel="noopener">Consultar disponibilidad <span aria-hidden="true">↗</span></a>
-                <a class="exp-text-link" href="${scene.link}">Explorar categoría</a>
-              </div>
-            </div>
-            <span class="exp-scene-side-note">${scene.category}</span>
-          </div>
-        </section>
-      `).join("")}
-      <section class="exp-outro">
-        <span class="exp-intro-mark">STTOR · ICA</span>
-        <h2>Tu próxima historia<br>empieza aquí.</h2>
-        <p>Cuéntanos qué estás buscando. Te ayudamos a comparar opciones y confirmar disponibilidad.</p>
-        <a class="exp-button exp-button--dark" href="${whatsappUrl("Hola STTOR, ayúdame a elegir un producto Apple.")}" target="_blank" rel="noopener">Hablemos por WhatsApp <span aria-hidden="true">↗</span></a>
-      </section>
-    </div>
-  `);
-}
-
-function initExperienceParallax() {
-  const scenes = qsa("[data-exp-scene]");
-  if (!scenes.length) return;
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reduceMotion) return;
-  const videoState = new WeakMap();
-
-  const loadVideo = (scene) => {
-    const video = qs("[data-experience-video]", scene);
-    if (!video) return null;
-    let state = videoState.get(video);
-    if (!state) {
-      state = {
-        loaded: false,
-        progress: Number(scene.style.getPropertyValue("--exp-progress")) || 0,
-        lastAssigned: -1
-      };
-      videoState.set(video, state);
-    }
-    if (!state.loaded && video.dataset.src) {
-      state.loaded = true;
-      video.preload = "auto";
-      video.src = video.dataset.src;
-      video.load();
-      video.addEventListener("loadedmetadata", () => seekVideo(video, state), { once: true });
-    }
-    return { video, state };
-  };
-
-  const seekVideo = (video, state) => {
-    if (reduceMotion || !Number.isFinite(video.duration) || video.duration <= 0 || video.readyState < 1) return;
-    const maxTime = Math.max(0, video.duration - 0.04);
-    const nextTime = Math.max(0, Math.min(maxTime, state.progress * maxTime));
-    if (state.lastAssigned >= 0 && Math.abs(nextTime - state.lastAssigned) < 0.035) return;
-    state.lastAssigned = nextTime;
-    try {
-      video.currentTime = nextTime;
-    } catch (_) {
-      state.lastAssigned = -1;
-    }
-  };
-
-  const observer = "IntersectionObserver" in window ? new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) loadVideo(entry.target);
-    });
-  }, { rootMargin: "120% 0px", threshold: 0 }) : null;
-  if (observer) scenes.forEach((scene) => observer.observe(scene));
-  else scenes.forEach(loadVideo);
-
-  let queued = false;
-  const update = () => {
-    queued = false;
-    const viewport = window.innerHeight || 1;
-    scenes.forEach((scene) => {
-      const rect = scene.getBoundingClientRect();
-      // Match video time to the distance while the scene is pinned in the viewport.
-      const stage = qs(".exp-scene-stage", scene);
-      const stickyTop = stage ? parseFloat(getComputedStyle(stage).top) || 0 : 0;
-      const stageHeight = stage?.getBoundingClientRect().height || viewport;
-      const scrollRange = Math.max(1, rect.height - stageHeight);
-      const progress = Math.max(0, Math.min(1, (stickyTop - rect.top) / scrollRange));
-      scene.style.setProperty("--exp-progress", progress.toFixed(4));
-      const video = qs("[data-experience-video]", scene);
-      if (!video) return;
-      const state = videoState.get(video);
-      if (state) {
-        state.progress = progress;
-        seekVideo(video, state);
-      }
-    });
-  };
-  const onScroll = () => {
-    if (queued) return;
-    queued = true;
-    window.requestAnimationFrame(update);
-  };
-  window.addEventListener("scroll", onScroll, { passive: true });
-  window.addEventListener("resize", onScroll, { passive: true });
-  update();
-}
-
-function renderHomeHelpSection() {
-  const items = [
-    ["Cotiza stock", "Pide modelo, color y capacidad por WhatsApp antes de venir.", "iphone.html"],
-    ["Compara equipos", "Revisa diferencias de pantalla, bateria, chip y camaras por categoria.", "iphone.html#comparar"],
-    ["Servicio tecnico", "Agenda diagnostico para iPhone, Mac, iPad, Watch, bateria o pantalla.", "servicio-tecnico.html"],
-    ["Garantia y datos", "Consulta condiciones, informacion comercial y ubicacion de tienda.", "garantia.html"]
-  ];
-  return `
-    <section class="section home-guidance-section">
-      <div class="section-head reveal">
-        <div>
-          <span class="eyebrow">Rapido y claro</span>
-          <h2 class="section-title">Todo lo importante en pocos pasos.</h2>
-        </div>
-      </div>
-      <div class="home-guidance-grid">
-        ${items.map(([title, copy, href], index) => `
-          <a class="guidance-card reveal" href="${href}">
-            <span>${String(index + 1).padStart(2, "0")}</span>
-            <h3>${title}</h3>
-            <p>${copy}</p>
-          </a>
-        `).join("")}
-      </div>
-    </section>
-  `;
 }
 
 function renderHomeFaqSection() {
@@ -2253,50 +2040,6 @@ function initReveal() {
   });
 }
 
-let homeParallaxTicking = false;
-let homeParallaxBound = false;
-
-function initHomeParallax() {
-  if (document.body.dataset.page !== "home" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const targets = [
-    ...qsa("[data-home-hero] .home-banner-device"),
-    ...qsa("[data-home-hero] .home-banner-offer"),
-    ...qsa(".home-category-strip .home-category-image"),
-    ...qsa(".home-catalog-section .product-media"),
-    ...qsa(".home-service-list .service-image")
-  ];
-  if (!targets.length) return;
-  targets.forEach((node) => {
-    if (node.dataset.parallaxReady) return;
-    node.dataset.parallaxReady = "true";
-    node.classList.add("sttor-parallax");
-    node.dataset.parallaxRange = node.matches(".home-banner-device") ? "42" : node.matches(".home-banner-offer") ? "18" : "14";
-  });
-  if (!homeParallaxBound) {
-    homeParallaxBound = true;
-    window.addEventListener("scroll", requestHomeParallaxUpdate, { passive: true });
-    window.addEventListener("resize", requestHomeParallaxUpdate, { passive: true });
-  }
-  requestHomeParallaxUpdate();
-}
-
-function requestHomeParallaxUpdate() {
-  if (homeParallaxTicking) return;
-  homeParallaxTicking = true;
-  window.requestAnimationFrame(() => {
-    homeParallaxTicking = false;
-    const mobileScale = window.innerWidth <= 600 ? 0.4 : window.innerWidth <= 900 ? 0.65 : 1;
-    qsa(".sttor-parallax").forEach((node) => {
-      const rect = node.getBoundingClientRect();
-      if (rect.bottom < -100 || rect.top > window.innerHeight + 100) return;
-      const distance = (window.innerHeight * 0.5 - (rect.top + rect.height * 0.5)) / Math.max(window.innerHeight, 1);
-      const range = Number(node.dataset.parallaxRange || 14) * mobileScale;
-      const offset = Math.max(-1, Math.min(1, distance * 1.5)) * range;
-      node.style.setProperty("--sttor-parallax-y", `${offset.toFixed(1)}px`);
-    });
-  });
-}
-
 let scrollDecorTicking = false;
 let scrollDecorBound = false;
 
@@ -2982,7 +2725,6 @@ function renderFooter() {
       </div>
       <nav class="footer-column" aria-label="Explora productos">
         <h3>Explora</h3>
-        <a href="experiencias.html">Experiencias STTOR</a>
         <a href="iphone.html">iPhone</a>
         <a href="mac.html">Mac</a>
         <a href="ipad.html">iPad</a>
