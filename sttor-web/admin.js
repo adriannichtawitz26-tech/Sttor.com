@@ -3,6 +3,7 @@ const Admin = {
   current: "overview",
   query: "",
   dirty: false,
+  productCategory: "",
   autosaveTimer: null,
   revision: 0,
   saving: false,
@@ -680,13 +681,18 @@ function renderProducts() {
   const categories = Object.keys(Admin.state.products);
   const products = allProducts().filter((item) => {
     const q = Admin.query.toLowerCase();
-    return !q || `${item.name} ${item.family} ${item.desc} ${item.category}`.toLowerCase().includes(q);
+    const matchesCategory = !Admin.productCategory || item.category === Admin.productCategory;
+    return matchesCategory && (!q || `${item.name} ${item.family} ${item.desc} ${item.category}`.toLowerCase().includes(q));
   });
   return `
     <section class="admin-page active">
       ${pageHead("Productos", "Edita precios, stock, nombres, descripciones, destacados e imagenes desde una sola tabla.", `<button class="btn primary" data-add-product>Nuevo producto</button>`)}
       <div class="admin-card">
-        <div class="admin-toolbar">
+        <div class="admin-toolbar admin-product-filter-bar">
+          <label class="admin-product-filter"><span>Ver productos</span><select class="admin-select" data-product-filter aria-label="Filtrar productos por categoría"><option value="">Todas las categorias (${allProducts().length})</option>${categories.map((key) => `<option value="${key}" ${Admin.productCategory === key ? "selected" : ""}>${Admin.state.categories[key]?.title || key} (${(Admin.state.products[key] || []).length})</option>`).join("")}</select></label>
+          <span class="admin-product-count">${products.length} producto${products.length === 1 ? "" : "s"}</span>
+        </div>
+        <div class="admin-toolbar admin-bulk-toolbar">
           <select class="admin-select" data-bulk-category>${categories.map((key) => `<option value="${key}">${Admin.state.categories[key]?.title || key}</option>`).join("")}</select>
           <input class="admin-input" data-bulk-price type="number" placeholder="Nuevo precio masivo">
           <input class="admin-input" data-bulk-stock type="number" placeholder="Nuevo stock masivo">
@@ -706,27 +712,27 @@ function renderProducts() {
 function renderProductRow(item) {
   return `
     <tr data-product-id="${item.id}" data-category="${item.category}">
-      <td>
+      <td data-label="Foto">
         <label class="dropzone" data-product-drop="${item.id}">
           ${item.image ? renderAdminMediaThumb(item.image, "image", item.name) : `<span>Soltar imagen</span>`}
           <input hidden type="file" accept="${IMAGE_ACCEPT}" data-product-image="${item.id}">
         </label>
       </td>
-      <td>
+      <td data-label="Nombre y descripción">
         <input class="admin-input" value="${escapeAttr(item.name)}" data-product-field="name">
         <textarea class="admin-textarea" data-product-field="desc">${escapeHtml(item.desc)}</textarea>
       </td>
-      <td><select class="admin-select" data-product-field="category">${Object.keys(Admin.state.products).map((key) => `<option value="${key}" ${key === item.category ? "selected" : ""}>${Admin.state.categories[key]?.title || key}</option>`).join("")}</select></td>
-      <td><input class="admin-input" type="number" value="${item.price}" data-product-field="price"></td>
-      <td><input class="admin-input" type="number" value="${item.stock || 0}" data-product-field="stock"></td>
-      <td>${item.category === "iphone" ? `
+      <td data-label="Categoría"><select class="admin-select" data-product-field="category">${Object.keys(Admin.state.products).map((key) => `<option value="${key}" ${key === item.category ? "selected" : ""}>${Admin.state.categories[key]?.title || key}</option>`).join("")}</select></td>
+      <td data-label="Precio"><input class="admin-input" type="number" value="${item.price}" data-product-field="price"></td>
+      <td data-label="Stock"><input class="admin-input" type="number" value="${item.stock || 0}" data-product-field="stock"></td>
+      <td data-label="Versiones disponibles">${item.category === "iphone" ? `
         <div class="product-condition-admin" aria-label="Condiciones disponibles para ${escapeAttr(item.name)}">
           <label class="toggle"><input type="checkbox" ${item.sealedAvailable !== false ? "checked" : ""} data-product-field="sealedAvailable"> Sellado</label>
           <label class="toggle"><input type="checkbox" ${item.openBoxAvailable !== false ? "checked" : ""} data-product-field="openBoxAvailable"> Open Box</label>
         </div>` : `<span class="admin-muted">Estándar</span>`}</td>
-      <td><label class="toggle"><input type="checkbox" ${item.featured ? "checked" : ""} data-product-field="featured"> Destacar</label></td>
-      <td><label class="toggle"><input type="checkbox" ${item.active !== false ? "checked" : ""} data-product-field="active"> Visible</label></td>
-      <td><button class="tiny-btn" data-duplicate="${item.id}">Duplicar</button> <button class="tiny-btn danger" data-delete="${item.id}">Eliminar</button></td>
+      <td data-label="Destacado"><label class="toggle"><input type="checkbox" ${item.featured ? "checked" : ""} data-product-field="featured"> Destacar</label></td>
+      <td data-label="Visibilidad"><label class="toggle"><input type="checkbox" ${item.active !== false ? "checked" : ""} data-product-field="active"> Visible</label></td>
+      <td data-label="Acciones"><div class="admin-product-actions"><button class="tiny-btn" data-duplicate="${item.id}">Duplicar</button> <button class="tiny-btn danger" data-delete="${item.id}">Eliminar</button></div></td>
     </tr>
   `;
 }
@@ -1208,6 +1214,10 @@ function bindView() {
   document.querySelectorAll("[data-admin-tab-jump]").forEach((btn) => btn.addEventListener("click", () => switchTab(btn.dataset.adminTabJump)));
   document.querySelectorAll("[data-product-field]").forEach((input) => input.addEventListener("input", updateProduct));
   document.querySelectorAll("[data-product-field][type='checkbox']").forEach((input) => input.addEventListener("change", updateProduct));
+  document.querySelector("[data-product-filter]")?.addEventListener("change", (event) => {
+    Admin.productCategory = event.target.value;
+    renderAdmin();
+  });
   document.querySelectorAll("[data-product-image]").forEach((input) => input.addEventListener("change", (event) => uploadProductImage(event.target.dataset.productImage, event.target.files[0])));
   document.querySelectorAll("[data-product-drop]").forEach(bindDropzone);
   document.querySelectorAll("[data-duplicate]").forEach((btn) => btn.addEventListener("click", () => duplicateProduct(btn.dataset.duplicate)));
