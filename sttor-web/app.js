@@ -2153,6 +2153,8 @@ function initHomeHero() {
   if (slides.length <= 1) return;
   let index = 0;
   let paused = false;
+  let inView = false;
+  let intervalId = null;
 
   const show = (next) => {
     index = (next + slides.length) % slides.length;
@@ -2164,15 +2166,25 @@ function initHomeHero() {
     dot.addEventListener("click", () => show(Number(dot.dataset.homeHeroDot || 0)));
   });
 
-  root.addEventListener("mouseenter", () => { paused = true; });
-  root.addEventListener("mouseleave", () => { paused = false; });
-  root.addEventListener("focusin", () => { paused = true; });
-  root.addEventListener("focusout", () => { paused = false; });
-
-  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    setInterval(() => {
-      if (!paused) show(index + 1);
-    }, 4200);
+  const syncAutoplay = () => {
+    const shouldRun = inView && !paused && !document.hidden && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (shouldRun && !intervalId) intervalId = window.setInterval(() => show(index + 1), 4200);
+    if (!shouldRun && intervalId) {
+      window.clearInterval(intervalId);
+      intervalId = null;
+    }
+  };
+  root.addEventListener("mouseenter", () => { paused = true; syncAutoplay(); });
+  root.addEventListener("mouseleave", () => { paused = false; syncAutoplay(); });
+  root.addEventListener("focusin", () => { paused = true; syncAutoplay(); });
+  root.addEventListener("focusout", () => { paused = false; syncAutoplay(); });
+  document.addEventListener("visibilitychange", syncAutoplay);
+  if ("IntersectionObserver" in window) {
+    const observer = new IntersectionObserver(([entry]) => {
+      inView = Boolean(entry?.isIntersecting);
+      syncAutoplay();
+    }, { threshold: 0.15 });
+    observer.observe(root);
   }
 }
 
@@ -2242,6 +2254,8 @@ function initCarousels() {
     next?.addEventListener("click", () => move(1));
     if (carousel.dataset.carouselAuto === "true" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       let paused = false;
+      let manuallyPaused = false;
+      let inView = false;
       let lastTime = 0;
       const setEnded = (value) => {
         ended = value;
@@ -2273,6 +2287,7 @@ function initCarousels() {
         toggle?.setAttribute("aria-label", paused ? "Reproducir carrusel" : "Pausar carrusel");
         toggle?.setAttribute("aria-pressed", paused ? "true" : "false");
       };
+      const syncVisibility = () => setPaused(manuallyPaused || !inView || document.hidden);
       const tick = (time) => {
         if (!lastTime) lastTime = time;
         const delta = time - lastTime;
@@ -2291,10 +2306,12 @@ function initCarousels() {
           elapsed = 0;
           setEnded(false);
           goTo(0);
-          setPaused(false);
+          manuallyPaused = false;
+          syncVisibility();
           return;
         }
-        setPaused(!paused);
+        manuallyPaused = !manuallyPaused;
+        syncVisibility();
       });
       indicators?.addEventListener("click", (event) => {
         const jump = event.target.closest("[data-carousel-jump]");
@@ -2302,7 +2319,8 @@ function initCarousels() {
         elapsed = 0;
         setEnded(false);
         goTo(Number(jump.dataset.carouselJump || 0));
-        setPaused(false);
+        manuallyPaused = false;
+        syncVisibility();
       });
       renderCarouselIndicators();
       track.addEventListener("scroll", () => {
@@ -2321,6 +2339,15 @@ function initCarousels() {
           renderCarouselIndicators();
         }
       }, { passive: true });
+      const visibilityObserver = "IntersectionObserver" in window
+        ? new IntersectionObserver(([entry]) => {
+            inView = Boolean(entry?.isIntersecting);
+            syncVisibility();
+          }, { threshold: 0.15 })
+        : null;
+      visibilityObserver?.observe(carousel);
+      document.addEventListener("visibilitychange", syncVisibility);
+      syncVisibility();
       window.addEventListener("resize", () => {
         activeIndex = Math.min(activeIndex, Math.max(0, getPageCount() - 1));
         renderCarouselIndicators();
