@@ -950,7 +950,7 @@ function renderExperiences() {
         <section class="exp-scene exp-scene--${scene.tone}" id="exp-${scene.id}" data-exp-scene aria-label="${scene.category}">
           <div class="exp-scene-stage">
             <div class="exp-video-wrap" aria-hidden="true">
-              <video class="exp-video" data-experience-video data-src="${scene.video}" muted playsinline loop preload="none" tabindex="-1"></video>
+              <video class="exp-video" data-experience-video data-src="${scene.video}" muted playsinline preload="none" tabindex="-1" aria-hidden="true"></video>
             </div>
             <div class="exp-scene-shade"></div>
             <div class="exp-scene-copy">
@@ -980,22 +980,51 @@ function initExperienceParallax() {
   const scenes = qsa("[data-exp-scene]");
   if (!scenes.length) return;
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const observer = new IntersectionObserver((entries) => {
+  if (reduceMotion) return;
+  const videoState = new WeakMap();
+
+  const loadVideo = (scene) => {
+    const video = qs("[data-experience-video]", scene);
+    if (!video) return null;
+    let state = videoState.get(video);
+    if (!state) {
+      state = {
+        loaded: false,
+        progress: Number(scene.style.getPropertyValue("--exp-progress")) || 0,
+        lastAssigned: -1
+      };
+      videoState.set(video, state);
+    }
+    if (!state.loaded && video.dataset.src) {
+      state.loaded = true;
+      video.preload = "auto";
+      video.src = video.dataset.src;
+      video.load();
+      video.addEventListener("loadedmetadata", () => seekVideo(video, state), { once: true });
+    }
+    return { video, state };
+  };
+
+  const seekVideo = (video, state) => {
+    if (reduceMotion || !Number.isFinite(video.duration) || video.duration <= 0 || video.readyState < 1) return;
+    const maxTime = Math.max(0, video.duration - 0.04);
+    const nextTime = Math.max(0, Math.min(maxTime, state.progress * maxTime));
+    if (state.lastAssigned >= 0 && Math.abs(nextTime - state.lastAssigned) < 0.035) return;
+    state.lastAssigned = nextTime;
+    try {
+      video.currentTime = nextTime;
+    } catch (_) {
+      state.lastAssigned = -1;
+    }
+  };
+
+  const observer = "IntersectionObserver" in window ? new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
-      const video = qs("[data-experience-video]", entry.target);
-      if (!video) return;
-      if (entry.isIntersecting) {
-        if (!video.src) {
-          video.src = video.dataset.src;
-          video.load();
-        }
-        if (!reduceMotion) video.play().catch(() => {});
-      } else {
-        video.pause();
-      }
+      if (entry.isIntersecting) loadVideo(entry.target);
     });
-  }, { rootMargin: "180px 0px", threshold: 0.01 });
-  scenes.forEach((scene) => observer.observe(scene));
+  }, { rootMargin: "120% 0px", threshold: 0 }) : null;
+  if (observer) scenes.forEach((scene) => observer.observe(scene));
+  else scenes.forEach(loadVideo);
 
   let queued = false;
   const update = () => {
@@ -1003,8 +1032,20 @@ function initExperienceParallax() {
     const viewport = window.innerHeight || 1;
     scenes.forEach((scene) => {
       const rect = scene.getBoundingClientRect();
-      const progress = Math.max(-1, Math.min(1, (viewport * 0.5 - (rect.top + rect.height * 0.5)) / (rect.height * 0.5)));
-      scene.style.setProperty("--exp-progress", progress.toFixed(3));
+      // Match video time to the distance while the scene is pinned in the viewport.
+      const stage = qs(".exp-scene-stage", scene);
+      const stickyTop = stage ? parseFloat(getComputedStyle(stage).top) || 0 : 0;
+      const stageHeight = stage?.getBoundingClientRect().height || viewport;
+      const scrollRange = Math.max(1, rect.height - stageHeight);
+      const progress = Math.max(0, Math.min(1, (stickyTop - rect.top) / scrollRange));
+      scene.style.setProperty("--exp-progress", progress.toFixed(4));
+      const video = qs("[data-experience-video]", scene);
+      if (!video) return;
+      const state = videoState.get(video);
+      if (state) {
+        state.progress = progress;
+        seekVideo(video, state);
+      }
     });
   };
   const onScroll = () => {
